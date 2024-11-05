@@ -1,0 +1,4 @@
+study_case = ["Phantom", "Hand", "Wrist", "Forearm", "Elbow", "Foot", "Ankle", "Foreleg", "Knee", "Other"]
+projects = ["None", "La Fe", "Ana Ferri"]
+side = ["Left", "Right"]
+orientation = ["Supine", "Prono"]
