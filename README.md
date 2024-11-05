@@ -1,8 +1,8 @@
 # MaSeq
-Pypulseq Interpreter in MaGRE and Marcos System
+Pypulseq Interpreter in [MaGRE](https://github.com/josalggui/MaRGE.git) and [Marcos](https://github.com/josalggui/MaRGE.git) System
 
 This repository is a fork of the [josalggui/MaGRE](https://github.com/josalggui/MaRGE.git) repository. We have extended MaGRE by integrating the Pypulseq interpreter to enhance the system's functionality.
-
+ 
 ## Overview
 
 Our fork of the MaGRE repository adds a **Pypulseq interpreter**, enabling the following key features:
@@ -15,7 +15,7 @@ Our fork of the MaGRE repository adds a **Pypulseq interpreter**, enabling the f
 This system allows for a streamlined process from programming MRI pulse sequences to visualizing the resulting images, all within a unified environment.
 . 
 
-## 1. Setting up MaGRE
+## 1. Setting up MaSeq
 
 Reference link is: https://github.com/josalggui/MaRGE/wiki/Setting-up-MaRGE
 
@@ -33,7 +33,6 @@ cd ~/<your_work_folder>/MaSeq
 git clone https://github.com/vnegnev/marcos_client.git
 git clone https://github.com/vnegnev/marcos_server.git
 git clone https://github.com/vnegnev/marcos_extras.git
-git clone https://github.com/josalggui/MaRGE.git
 ```
 
 ### 2. Create and modify the configuration files:
