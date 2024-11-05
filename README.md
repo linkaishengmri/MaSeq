@@ -21,11 +21,11 @@ Reference link is: https://github.com/josalggui/MaRGE/wiki/Setting-up-MaRGE
 
 ### 0. Clone the MaSeq repository in your work folder
 ```
-git clone https://github.com/linkaishengmri/MaSeq.git
+git clone https://github.com/linkaishengmri/MaSeq_pack.git
 ```
 Go to the folder:
 ```
-cd ~/<your_work_folder>/MaSeq
+cd ~/<your_work_folder>/MaSeq_pack
 ```
 
 ### 1. Clone the required repositories in the folder of the client computer:
@@ -33,6 +33,7 @@ cd ~/<your_work_folder>/MaSeq
 git clone https://github.com/vnegnev/marcos_client.git
 git clone https://github.com/vnegnev/marcos_server.git
 git clone https://github.com/vnegnev/marcos_extras.git
+git clone https://github.com/linkaishengmri/MaSeq.git
 ```
 
 ### 2. Create and modify the configuration files:
