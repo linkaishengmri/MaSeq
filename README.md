@@ -43,14 +43,30 @@ This file contains details about the Red Pitaya hardware, including:
 - Red Pitaya IP address
 - GPA board information (ocra1 must be selected, because gpa-fhdo is not yet available up to now on our MaSeq repo)
 
-2.2. `hw_config.py` in the `MaRGE/configs` folder
+2.2. `hw_config.py` in the `MaSeq/configs` folder
 Contains information about:
 - Scanner hardware (rp-122 must be selected)
 - Red Pitaya IP address 
 
-2.3. `sys_config.py` in the `MaRGE/configs` folder
+2.3. `sys_config.py` in the `MaSeq/configs` folder
 Contains settings related to:
 - GUI session display
 
 2.4. `units.py` in the `MaRGE/configs` folder
 Typically doesn't need modification.
+
+
+### 3. Set up bash: Set the bash_path variable in the hw_config.py file:
+
+For Windows:
+```
+bash_path = "C:/path/to/git_bash.exe"
+```
+For Ubuntu:
+```
+bash_path = "gnome-terminal"
+```
+### 4. Install required modules:
+```
+pip install -r requirements.txt
+```
