@@ -7,6 +7,7 @@ Created on Tuesday, September 17th 2024
 
 import os
 import sys
+import matplotlib as plt
 
 #*****************************************************************************
 # Get the directory of the current script
@@ -528,6 +529,8 @@ class MSE(blankSeq.MRIBLANKSEQ):
                     # Add time delay to next repetition
                     batches[seq_num].add_block(delay_TR)
 
+            #batches[seq_num].plot()
+            
             # Get the rd point list
             n_rd_points_dict.pop('batch_0')
             n_rd_points_dict[seq_num] = n_rd_points
