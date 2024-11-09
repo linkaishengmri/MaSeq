@@ -40,6 +40,8 @@ import seq.fix_gain as fix_gain
 import seq.mse_pp as mse_pp
 import seq.mse_pp_jma as mse_jma
 
+import seq.ssfp_pseq as ssfp_pseq
+
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
 
@@ -118,6 +120,9 @@ class AutoTuning(autoTuning.AutoTuning):
 class Localizer(localizer.Localizer):
     def __init__(self): super(Localizer, self).__init__()
 
+class SSFPPSEQ(ssfp_pseq.SSFPPSEQ):
+    def __init__(self): super(SSFPPSEQ, self).__init__()
+
 """
 Definition of default sequences
 """
@@ -155,4 +160,6 @@ defaultsequences = {
     'MSE': mse.MSE(),
     'MSE_PyPulseq': mse_pp.MSE(),
     'Larmor PyPulseq': larmor_pypulseq.LarmorPyPulseq(),
+    'ssfp_pseq': ssfp_pseq.SSFPPSEQ(),
+    
 }
