@@ -46,7 +46,7 @@ class PulseqReader(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=3.066, units=units.MHz, field='IM')
         self.addParameter(key='shimming', string='Shimming', val=[0, 0, 0], field='IM', units=units.sh)
-        self.addParameter(key='files', string='Files', val="/home/lks/MaSeq_pack/MaSeq/pseq_file/ssfp.seq", field='IM', tip='List .seq files')
+        self.addParameter(key='files', string='Files', val="D:/table/marcos/MaSeq_pack/MaSeq/pseq_file/ssfp.seq", field='IM', tip='List .seq files')
 
     def sequenceInfo(self):
         print("Pulseq Reader")
@@ -162,14 +162,7 @@ class PulseqReader(blankSeq.MRIBLANKSEQ):
                     print("Scan %i ready!" % (scan + 1))
                     self.mapVals['data_over'] = data_over
             elif plotSeq and standalone:
-                #self.sequencePlot(standalone=standalone)###############################
-                self.expt = ex.Experiment(lo_freq=self.larmorFreq * 1e-6,  # MHz
-                                          rx_t=dwell * 1e-3,  # us
-                                          init_gpa=init_gpa,
-                                          gpa_fhdo_offset_time=(1 / 0.2 / 3.1),
-                                          )
-                self.expt.plot_sequence() 
-                plt.show()
+                self.sequencePlot(standalone=standalone)
                 return True
 
             # Close the experiment
