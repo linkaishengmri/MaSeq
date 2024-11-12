@@ -13,7 +13,7 @@ parent_directory = os.path.dirname(main_directory)
 parent_directory = os.path.dirname(parent_directory)
 
 # Define the subdirectories you want to add to sys.path
-subdirs = ['MaRGE', 'marcos_client']
+subdirs = ['MaSeq', 'marcos_client']
 
 # Add the subdirectories to sys.path
 for subdir in subdirs:

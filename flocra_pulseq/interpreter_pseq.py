@@ -18,6 +18,7 @@ class PseqInterpreter(PSInterpreter):
                  rx_gate_mode = 0, # 0: no rx_gate output, 1: [TODO] set rx_gate as 2nd TX_gate 
                  tx_ch = 0, # TX channel index: either 0 or 1
                  rx_ch = 0, # RX channel index: either 0 or 1. [TODO] Both 0 and 1 is under construction
+                 grad_eff = [0.4113, 0.9094,1.0000]  # gradient coefficient of efficiency
                  ):
         """
         Create PSInterpreter object for FLOCRA with system parameters.
@@ -37,12 +38,12 @@ class PseqInterpreter(PSInterpreter):
             grad_zero_end (bool): Default True -- Force zero at the end of Gradient/Trap shapes
             log_file (str): Default 'ps_interpreter' -- File (.log appended) to write run log into.
             log_level (int): Default 20 (INFO) -- Logger level, 0 for all, 20 to ignore debug.
-        More params added:
             orientation (list): Default [2,0,1] -- Specifies the gradient direction of the frequency/Phase/Slice encoding
             blank_time (float): Default 1000 -- Blank time before RF start to ensure that tx_warmup work properly 
             rx_gate_mode (int): Default 0 -- no rx gate output
-            tx_ch (int): Default 0 -- channel index: either 0 or 1
+            tx_ch (int): Default 0 -- Channel index: either 0 or 1
             rx_ch (int): Default 0 -- RX channel index: either 0 or 1. 
+            grad_eff (list): Default [0.4113, 0.9094,1.0000] -- Gradient coefficient of efficiency
 
         """
         super().__init__( rf_center=rf_center, rf_amp_max=rf_amp_max, grad_max=grad_max,
@@ -56,7 +57,7 @@ class PseqInterpreter(PSInterpreter):
         self._rx_gate_mode = rx_gate_mode
         self._tx_ch = tx_ch
         self._rx_ch = rx_ch
-        
+        self._grad_eff = grad_eff
 
          # Redefine var_name
         self._var_names = ('tx0', 'tx1', 'grad_vx', 'grad_vy', 'grad_vz', 'grad_vz2',
@@ -291,10 +292,11 @@ class PseqInterpreter(PSInterpreter):
             if grad_id != 0:
                 # grad_var_name = grad_ch[0] + 'rad_v' + grad_ch[1] # To get the correct varname for output g[CH] -> grad_v[CH]
                 grad_channel_idx = {'x': 0, 'y': 1, 'z': 2}.get(grad_ch[1], "Invalid input")
-                grad_var_name = self._global_or_str[self._orientation[grad_channel_idx]]
+                target_idx = self._orientation[grad_channel_idx]
+                grad_var_name = self._global_or_str[target_idx]
                 self._error_if(np.any(np.abs(self._grad_data[grad_id] / self._grad_max[grad_ch]) > 1), 
                     f'Gradient event {grad_id} for {grad_ch} in block {block_id} is larger than {grad_ch} max')
-                out_dict[grad_var_name] = (self._grad_times[grad_id], self._grad_data[grad_id] / self._grad_max[grad_ch])
+                out_dict[grad_var_name] = (self._grad_times[grad_id], self._grad_data[grad_id] / self._grad_max[grad_var_name[0]+grad_var_name[-1]] * self._grad_eff[target_idx])
                 # duration = max(duration, self._grad_durations[grad_id])
 
         # Rx updates

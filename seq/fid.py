@@ -55,8 +55,8 @@ class FID(blankSeq.MRIBLANKSEQ):
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
-        repetitionTime = self.mapVals['repetitionTime']*1e-3
-        return(repetitionTime*nScans/60)  # minutes, scanTime
+        repetitionTime = self.mapVals['repetitionTime'] * 1e-3
+        return(repetitionTime * nScans / 60)  # minutes, scanTime
 
     def sequenceRun(self, plotSeq=0, demo=False):
         init_gpa = False  # Starts the gpa

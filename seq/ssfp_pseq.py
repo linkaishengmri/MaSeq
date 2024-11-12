@@ -1,7 +1,7 @@
 """
 Created on Tuesday, Nov 6th 2024
 @author: Kaisheng Lin, School of Electronics, Peking University, China
-@Summary: GRE (non-balanced SSFP) sequence coded with pypulseq compatible with MaSeq
+@Summary: GRE sequence (non-balanced SSFP), implemented with PyPulseq and compatible with MaSeq.
 """
 
 import os
@@ -23,7 +23,6 @@ for subdir in subdirs:
     full_path = os.path.join(parent_directory, subdir)
     sys.path.append(full_path)
 #******************************************************************************
-import math
 import pypulseq as pp
 import numpy as np
 import seq.mriBlankSeq as blankSeq   
@@ -38,17 +37,51 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(SSFPPSEQ, self).__init__()
         # Input the parameters
-        self.files = None
         self.output = None
-        self.nScans = None
-        self.shimming = None
         self.expt = None
+        self.freqOffset = None
+        self.nScans = None
         self.larmorFreq = None
-        self.addParameter(key='seqName', string='PulseqReader', val='PulseqReader')
+        self.rfExFA = None
+        self.rfSincExTime = None
+        self.repetitionTime = None
+        self.echoTime = None
+        self.fovInPlane = None
+        self.dfov = None
+        self.nPoints = None
+        self.axesOrientation = None
+        self.dummyPulses = None
+        self.bandwidth = None
+        self.DephTime = None
+        self.shimming = None
+        self.thickness = None
+        self.sliceGap = None
+
+        self.addParameter(key='seqName', string='ssfp', val='ssfp')
+        self.addParameter(key='freqOffset', string='Larmor frequency offset (Hz)', val=0.0, field='RF')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=3.0, units=units.MHz, field='IM')
-        self.addParameter(key='shimming', string='Shimming', val=[0, 0, 0], field='IM', units=units.sh)
-        self.addParameter(key='files', string='Files', val="/home/lks/MaSeq_pack/MaSeq/pseq_file/ssfp.seq", field='IM', tip='List .seq files')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.36, units=units.MHz, field='IM')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
+        # self.addParameter(key='rfReFA', string='Refocusing flip angle (º)', val=180, field='RF')
+        self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
+        # self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (us)', val=3000.0, units=units.us, field='RF')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=300.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=10.0, units=units.ms, field='SEQ')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
+        self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
+        self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
+        
+        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
+                          tip="Position of the gradient isocenter")
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[2,0,1], field='IM',
+                          tip="0=x, 1=y, 2=z")
+        # self.addParameter(key='files', string='Files', val="/home/lks/MaSeq_pack/MaSeq/pseq_file/ssfp.seq", field='IM', tip='List .seq files')
+        self.addParameter(key='dummyPulses', string='Dummy pulses', val=2, field='SEQ')
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
+                          tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
+        self.addParameter(key='DephTime', string='dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
+        self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
 
     def sequenceInfo(self):
         print("Pulseq Reader")
@@ -59,58 +92,403 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         
 
     def sequenceTime(self):
-        return 0  # minutes, scanTime
+        return (self.repetitionTime * self.nScans * self.nPoints[2] * self.nPoints[1] / 60)  # minutes
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
 
         # Convert files to a list
-        self.files = self.files.strip('[]').split(',')
-        self.files = [s.strip() for s in self.files]
+        # self.files = self.files.strip('[]').split(',')
+        # self.files = [s.strip() for s in self.files]
 
     def sequenceRun(self, plotSeq=0, demo=False, standalone=False):
         init_gpa = False
         self.demo = demo
+        self.plotSeq = plotSeq
+        self.standalone = standalone
+        
+        # Calculate slice positions
+        slice_positions = (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
+
+        # Reorder slices for an interleaved acquisition (optional)
+        slice_positions = np.concatenate((slice_positions[::2], slice_positions[1::2]))
+
+        # redefine fov using slice thickness and gap
+        self.fov = [self.fovInPlane[0], self.fovInPlane[1], np.max(slice_positions)-np.min(slice_positions)+self.thickness]       
+
+        '''
+        Step 1: Define the interpreter for FloSeq/PSInterpreter.
+        The interpreter is responsible for converting the high-level pulse sequence description into low-level
+        instructions for the scanner hardware. You will typically update the interpreter during scanner calibration.
+        '''
+
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
         max_rf_Hz = hw.max_rf * 1e-6 * hw.gammaB
-        # Step 1: Define the interpreter for FloSeq/PSInterpreter.
-        # The interpreter is responsible for converting the high-level pulse sequence description into low-level
-        # instructions for the scanner hardware. You will typically update the interpreter during scanner calibration.
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
-            rf_center=hw.larmorFreq * 1e6,  # Larmor frequency (Hz)
+            rf_center=hw.larmorFreq * 1e6 + self.freqOffset,  # Larmor frequency (Hz)
             rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
             grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
             grad_t=10,  # Gradient raster time (us)
+            orientation=self.axesOrientation, # gradient orientation
+            grad_eff=hw.gradFactor # gradient coefficient of efficiency
+        )
+        
+        '''
+        Step 2: Define system properties using PyPulseq (pp.Opts).
+        These properties define the hardware capabilities of the MRI scanner, such as maximum gradient strengths,
+        slew rates, and dead times. They are typically set based on the hardware configuration file (`hw_config`).
+        '''
+        self.system = pp.Opts(
+            rf_dead_time=hw.blkTime * 1e-6,  # Dead time between RF pulses (s)
+            max_grad=30,  # Maximum gradient strength (mT/m)
+            grad_unit='mT/m',  # Units of gradient strength
+            max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
+            slew_unit='mT/m/ms',  # Units of gradient slew rate
+            grad_raster_time=hw.grad_raster_time,  # Gradient raster time (s)
+            rise_time=hw.grad_rise_time,  # Gradient rise time (s)
+            rf_raster_time=1e-6,
+            block_duration_raster=1e-6,
+            adc_raster_time=1/(122.88e6)
         )
 
-        # Function to get the dwell time
-        def get_seq_info(file_path):
-            dwell_time = None
-            with open(file_path, 'r') as file:
-                lines = file.readlines()
-                adc_section = False
+        '''
+        Step 3: Perform any calculations required for the sequence.
+        In this step, students can implement the necessary calculations, such as timing calculations, RF amplitudes, and
+        gradient strengths, before defining the sequence blocks.
+        '''
 
-                for line in lines:
-                    if line.strip() == '[ADC]':
-                        adc_section = True
-                        continue
+        bw = self.bandwidth * 1e-6 # MHz
+        bw_ov = self.bandwidth * 1e-6 # - hw.oversamplingFactor  # MHz
+        sampling_period = 1 / bw_ov  # us, Dwell time
 
-                    if adc_section:
-                        # If we reach another section, stop processing ADC section
-                        if line.startswith('\n'):
-                            break
+        '''
+        Step 4: Define the experiment to get the true bandwidth
+        In this step, student needs to get the real bandwidth used in the experiment. To get this bandwidth, an
+        experiment must be defined and the sampling period should be obtained using get_rx_ts()[0]
+        '''
 
-                        # Split the line into components
-                        components = line.split()
+        if not self.demo:
+            expt = ex.Experiment(
+                lo_freq=hw.larmorFreq,  # Larmor frequency in MHz
+                rx_t=sampling_period,  # Sampling time in us
+                init_gpa=False,  # Whether to initialize GPA board (False for True)
+                gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
+                auto_leds=True  # Automatic control of LEDs (False or True)
+            )
+            sampling_period = expt.get_rx_ts()[0]  # us
+            bw = 1 / sampling_period # / hw.oversamplingFactor  # MHz
+            print("Acquisition bandwidth fixed to: %0.3f kHz" % (bw * 1e3))
+            expt.__del__()
+        self.mapVals['bw_MHz'] = bw
+        self.mapVals['sampling_period_us'] = sampling_period
 
-                        # Check if the line contains the ADC event data
-                        if len(components) >= 4:
-                            n_readouts = int(components[1])  # Extract the number of acquired points per Rx window
-                            dwell_time = int(components[2])  # Extract the dwell time (3rd component)
+        '''
+        Step 5: Define sequence blocks.
+        In this step, you will define the building blocks of the MRI sequence, including the RF pulses and gradient pulses.
+        '''
 
-            return n_readouts, dwell_time
+        rf, gz, _ = pp.make_sinc_pulse(
+            flip_angle=self.rfExFA * np.pi / 180,
+            duration=self.rfSincExTime,
+            slice_thickness=self.thickness,
+            apodization=0.42,
+            time_bw_product=4,
+            system=self.system,
+            return_gz=True
+        )
 
+
+        readout_duration = sampling_period * 1e-6 * self.nPoints[0]
+        print(f'dwell time: {sampling_period} us, readout time: {readout_duration} s')
+        delta_kx = 1 / self.fov[0]
+        delta_ky = 1 / self.fov[1]
+        delta_kz = 1 / self.fov[2]
+        gx = pp.make_trapezoid(channel="x", flat_area=self.nPoints[0] * delta_kx, flat_time=readout_duration, system=self.system)
+        adc = pp.make_adc(num_samples=self.nPoints[0], dwell=1 / self.bandwidth, delay=gx.rise_time, system=self.system)
+        gx_pre = pp.make_trapezoid(channel="x", area=-gx.area / 2, duration=self.DephTime, system=self.system)
+        
+        gx_spoil = pp.make_trapezoid(channel="x", area=2 * self.nPoints[0] * delta_kx, system=self.system)
+        gz_spoil = pp.make_trapezoid(channel="z", area=4 / self.thickness, system=self.system)
+
+
+        # Phase encoding
+        phase_areas_y = (np.arange(self.nPoints[1]) - self.nPoints[1] // 2) * delta_ky
+        phase_areas_z = (np.arange(self.nPoints[2]) - self.nPoints[2] // 2) * delta_kz
+
+        # Phase encoding table with YZ order (outer loop = Z, inner loop = Y)
+        phase_encode_table = [(y,z) for z in range(len(phase_areas_z)) for y in range(len(phase_areas_y))]
+        
+        TE = self.echoTime
+        TR = self.repetitionTime
+        # Calculate timing
+        delay_TE = (
+            np.ceil(
+                (
+                    TE
+                    - (pp.calc_duration(gz, rf) - pp.calc_rf_center(rf)[0] - rf.delay)
+                    - pp.calc_duration(gx_pre)
+                    - pp.calc_duration(gx) / 2
+                    - pp.eps
+                )
+                / self.system.grad_raster_time
+            )
+            * self.system.grad_raster_time
+        )
+        delay_TR = (
+            np.ceil(
+                (
+                    TR
+                    - pp.calc_duration(rf, gz)
+                    - pp.calc_duration(gx_pre)
+                    - pp.calc_duration(gx)
+                    - delay_TE
+                )
+                / self.system.grad_raster_time
+            )
+            * self.system.grad_raster_time
+        )
+        # Exercises: Possible that you need to comment out these
+        assert delay_TE >= 0
+        assert delay_TR >= pp.calc_duration(gx_spoil, gz_spoil)
+        
+        
+        
+
+        def runBatches_pseq(waveforms, n_readouts, frequency=hw.larmorFreq, bandwidth=0.03):
+            """
+            Execute multiple batches of waveforms for MRI data acquisition, handle scanning, and store oversampled data.
+
+            Parameters:
+            -----------
+            waveforms : dict
+                A dictionary of waveform sequences, where each key corresponds to a batch identifier and
+                the value is the waveform data generated using PyPulseq.
+            n_readouts : dict
+                A dictionary that specifies the number of readout points for each batch. Keys correspond to
+                the batch identifiers, and values specify the number of readout points for each sequence.
+            frequency : float, optional
+                Larmor frequency in MHz for the MRI scan (default is the system's Larmor frequency, hw.larmorFreq).
+            bandwidth : float, optional
+                Bandwidth in Hz used to calculate the sampling time (1 / bandwidth gives the sampling period).
+
+            Returns:
+            --------
+            bool
+                Returns True if all batches were successfully executed, and False if an error occurred (e.g.,
+                sequence waveforms are out of hardware bounds).
+
+            Notes:
+            ------
+            - The method will initialize the Red Pitaya hardware if not in demo mode.
+            - The method converts waveforms from PyPulseq format to Red Pitaya compatible format.
+            - If plotSeq is True, the sequence will be plotted instead of being executed.
+            - In demo mode, the acquisition simulates random data instead of using actual hardware.
+            - Oversampled data is stored in the class attribute `self.mapVals['data_over']`.
+            - Data points are acquired in batches, with error handling in case of data loss, and batches are repeated if necessary.
+            """
+            
+
+            # Initialize a list to hold oversampled data
+            data_over = []
+
+            # Iterate through each batch of waveforms
+            for seq_num in waveforms.keys():
+                # Initialize the experiment if not in demo mode
+                if not self.demo:
+                    self.expt = ex.Experiment(
+                        lo_freq=frequency,  # Larmor frequency in MHz
+                        rx_t=1 / bandwidth,  # Sampling time in us
+                        init_gpa=False,  # Whether to initialize GPA board (False for now)
+                        gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
+                        auto_leds=True  # Automatic control of LEDs
+                    )
+
+                # Convert the PyPulseq waveform to the Red Pitaya compatible format
+                self.pypulseq2mriblankseq(waveforms=waveforms[seq_num], shimming=self.shimming)
+
+                # Load the waveforms into Red Pitaya
+                if not self.floDict2Exp():
+                    print("ERROR: Sequence waveforms out of hardware bounds")
+                    return False
+                else:
+                    print("Sequence waveforms loaded successfully")
+
+                # If not plotting the sequence, start scanning
+                if not self.plotSeq:
+                    for scan in range(self.nScans):
+                        print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{self.nPoints[2]} running...")
+                        acquired_points = 0
+                        expected_points = n_readouts[seq_num] * hw.oversamplingFactor  # Expected number of points
+
+                        # Continue acquiring points until we reach the expected number
+                        while acquired_points != expected_points:
+                            if not self.demo:
+                                rxd, msgs = self.expt.run()  # Run the experiment and collect data
+                            else:
+                                # In demo mode, generate random data as a placeholder
+                                rxd = {'rx0': np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
+
+                            # Update acquired points
+                            acquired_points = np.size(rxd['rx0'])
+
+                            # Check if acquired points coincide with expected points
+                            if acquired_points != expected_points:
+                                print("WARNING: data apoints lost!")
+                                print("Repeating batch...")
+
+                        # Concatenate acquired data into the oversampled data array
+                        data_over = np.concatenate((data_over, rxd['rx0']), axis=0)
+                        print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
+                        print(f"Scan {scan + 1}, batch {seq_num[-1]}/{self.nPoints[2]} ready!")
+
+                    # Decimate the oversampled data and store it
+                    self.mapVals['data_over'] = data_over
+                    self.mapVals['data_full'] = np.concatenate((self.mapVals['data_full'], self.mapVals['data_over']), axis=0)
+
+                elif self.plotSeq and self.standalone:
+                    # Plot the sequence if requested and return immediately
+                    self.sequencePlot(standalone=self.standalone)
+
+                if not self.demo:
+                    self.expt.__del__()
+
+            return True
+        
+        
+        # Initialize batches dictionary to store different parts of the sequence.
+        batches = {}
+        n_rd_points_dict = {}  # Dictionary to track readout points for each batch
+        n_rd_points = 0
+        batch_idx = 1 # In this sequence, batch_idx is equivalent to the index of slice coding index 
+
+        
+        '''
+        Step 7: Define your createBatches method.
+        In this step you will populate the batches adding the blocks previously defined in step 4, and accounting for
+        number of acquired points to check if a new batch is required.
+        '''
+        def createBatches():
+            """
+            Create batches for the full pulse sequence.
+
+            Instructions:
+            - This function creates the complete pulse sequence by iterating through repetitions.
+            - Each iteration adds new blocks to the sequence, including the RF pulse, ADC block, and repetition delay.
+            - If a batch exceeds the maximum number of readout points, a new batch is started.
+
+            Returns:
+                waveforms (dict): Contains the waveforms for each batch.
+                n_rd_points_dict (dict): Dictionary of readout points per batch.
+            """
+            
+            n_rd_points = 0
+
+            for Cy in range(-self.dummyPulses, self.nPoints[1]):
+                # In a single slice, rd points must be less than hw.maxRdPoints
+                
+                if Cy >= 0:
+                    assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
+                    n_rd_points = n_rd_points + self.nPoints[0]
+                 
+                # RF excitation and slice/slab selection gradient
+                batches[batch_num].add_block(rf, gz)
+
+                # Wait for TE
+                batches[batch_num].add_block(pp.make_delay(delay_TE))
+
+                # Phase encoding gradients, combined with slice selection rephaser
+                pe_index_y, pe_index_z = phase_encode_table[max(Cy, 0)]
+                
+                gx_pre = pp.make_trapezoid(channel="x", area=0.5 * gx.area, duration=self.DephTime, system=self.system)
+                gy_pre = pp.make_trapezoid(channel="y", area=phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system)
+                gz_pre = pp.make_trapezoid(channel="z", area=phase_areas_z[pe_index_z] - gz.area / 2, duration=self.DephTime, system=self.system)
+                batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)
+
+                # Readout, do not enable ADC/labels for dummy acquisitions
+                if Cy < 0:
+                    batches[batch_num].add_block(gx)
+                else:
+                    # Readout with LIN (Y) and SLC (Z) labels (increment relative to previous label value)
+                    batches[batch_num].add_block(gx, adc) #, pp.make_label('LIN', 'INC', pe_index_y - last_lin), pp.make_label('SLC', 'INC', pe_index_z - last_slc))
+
+                # Balance phase encoding and slice selection gradients
+                gy_post = pp.make_trapezoid(channel="y", area=-phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system) #jl
+                gz_post = pp.make_trapezoid(channel="z", area=-phase_areas_z[pe_index_z] - gz.area / 2, duration=self.DephTime, system=self.system) #jl
+                gx_post = pp.make_trapezoid(channel="x", area=0.5 * gx.area, duration=self.DephTime, system=self.system)
+                batches[batch_num].add_block(gx_post, gy_post, gz_post)
+
+                # wait for TR
+                batches[batch_num].add_block(pp.make_delay(delay_TR))
+
+                
+            # Check whether the timing of the sequence is correct
+            ok, error_report = batches[batch_num].check_timing()
+            if ok:
+                print(batch_num + ": Timing check passed successfully")
+            else:
+                print(batch_num + ": Timing check failed. Error listing follows:")
+                [print(e) for e in error_report]    
+                
+            if plotSeq:
+                batches[batch_num].plot()
+
+            batches[batch_num].set_definition(key="Name", value="ssfp")
+            batches[batch_num].set_definition(key="FOV", value=self.fov)
+            batches[batch_num].write(batch_num + ".seq")
+            self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
+            print(f"{batch_num}.seq ready!")
+            print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
+
+            # Update the number of acquired ponits in the last batch
+            self.n_rd_points_dict[batch_num] = n_rd_points
+
+            return 
+
+        '''
+        Step 8: Run the batches
+        This step will handle the different batches, run it and get the resulting data. This should not be modified.
+        Oversampled data will be available in self.mapVals['data_over']
+        '''
+        self.waveforms = {}  # Dictionary to store generated waveforms
+        self.n_rd_points_dict = {}
+        self.rf_slice_freq_offset = []
+        self.mapVals['data_full'] = []
+        for Cz in range(self.nPoints[2]):
+
+            batch_num = f"batch_{batch_idx}"  # Initial batch name
+            print(f"Creating {batch_num}.seq...")
+            batches[batch_num] = pp.Sequence(system=self.system)
+
+            # RF offset here 
+            rf.freq_offset=gz.amplitude*slice_positions[Cz]
+            rf.phase_offset=-2*np.pi*rf.freq_offset*pp.calc_rf_center(rf)[0] # compensate for the slice-offset induced phase
+            adc.freq_offset=rf.freq_offset
+            createBatches()
+            self.rf_slice_freq_offset.append(rf.freq_offset)
+            batch_idx = batch_idx + 1
+
+        # run batches (one batch represent one slice)
+        for Cz in range(self.nPoints[2]):
+            batches_list = [{key: value} for key, value in self.waveforms.items()]
+            n_rd_points_list = [{key: value} for key, value in self.n_rd_points_dict.items()]
+            
+            assert runBatches_pseq(batches_list[Cz],
+                               n_rd_points_list[Cz],
+                               frequency=hw.larmorFreq + self.freqOffset * 1e-6 + self.rf_slice_freq_offset[Cz],  # MHz
+                               bandwidth=bw_ov,  # MHz
+                               )
+            
+        self.mapVals['n_readouts'] = list(self.n_rd_points_dict.values())
+        self.mapVals['n_batches'] = self.nPoints[2]
+        return True
+
+        
+
+
+
+    def sequenceAnalysis2(self, mode=None):
+        return
         data_over = []  # To save oversampled data
         for file in self.files:
             print("Running " + file + "...")
@@ -178,16 +556,16 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
     def sequenceAnalysis(self, mode=None):
         self.mode = mode
         self.etl = 1 # for ssfp
-        self.axesOrientation = [0,1,2] # for ssfp
+        #self.axesOrientation = [0,1,2] # for ssfp
         self.unlock_orientation = 0 # for ssfp
-        resolution = np.array([1.0,1.0,1.0]) #self.fov / self.nPoints
+        resolution = self.fov / self.nPoints
         self.mapVals['resolution'] = resolution
 
         # Get data
         data_full = self.mapVals['data_full']
-        nRD, nPH, nSL = 256, 2, 1 # self.nPoints
+        nRD, nPH, nSL = self.nPoints
         nRD = nRD + 2 * hw.addRdPoints
-        n_batches = 1 # self.mapVals['n_batches']
+        n_batches = self.mapVals['n_batches']
 
         # Reorganize data_full
         data_prov = np.zeros([self.nScans, nRD * nPH * nSL * self.etl], dtype=complex)
@@ -373,11 +751,11 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
 
         return self.output
  
-
+    
 if __name__ == '__main__':
     seq = SSFPPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
