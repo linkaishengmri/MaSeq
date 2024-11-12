@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 :author:    J.M. Algarín
 :email:     josalggui@i3m.upv.es
@@ -41,11 +42,11 @@ class MarcosController(MarcosToolBar):
         super(MarcosController, self).__init__(*args, **kwargs)
 
         # Copy relevant files from marcos_extras
-        shutil.copy("../marcos_extras/copy_bitstream.sh", "../MaRGE")
-        shutil.copy("../marcos_extras/marcos_fpga_rp-122.bit", "../MaRGE")
-        shutil.copy("../marcos_extras/marcos_fpga_rp-122.bit.bin", "../MaRGE")
-        shutil.copy("../marcos_extras/marcos_fpga_rp-122.dtbo", "../MaRGE")
-        shutil.copy("../marcos_extras/readme.org", "../MaRGE")
+        shutil.copy("../marcos_extras/copy_bitstream.sh", "../MaSeq")
+        shutil.copy("../marcos_extras/marcos_fpga_rp-122.bit", "../MaSeq")
+        shutil.copy("../marcos_extras/marcos_fpga_rp-122.bit.bin", "../MaSeq")
+        shutil.copy("../marcos_extras/marcos_fpga_rp-122.dtbo", "../MaSeq")
+        shutil.copy("../marcos_extras/readme.org", "../MaSeq")
 
         self.action_server.setCheckable(True)
         self.action_start.triggered.connect(self.startMaRCoS)
@@ -118,7 +119,8 @@ class MarcosController(MarcosToolBar):
         if not self.main.demo:
 
             try:
-                subprocess.run([hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "killall marcos_server"])
+                
+                subprocess.run([hw.bash_path, "--", "./communicateRedPitaya.sh", hw.rp_ip_address, "killall marcos_server"])
                 subprocess.run([hw.bash_path, "--", "./startRP.sh", hw.rp_ip_address, hw.rp_version])
                 self.initgpa()
                 print("READY: MaRCoS updated, server connected, gpa initialized.")
@@ -137,15 +139,15 @@ class MarcosController(MarcosToolBar):
         """
         if not self.main.demo:
             if not self.action_server.isChecked():
-                subprocess.run([hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "killall marcos_server"])
+                subprocess.run([hw.bash_path, "--", "./communicateRedPitaya.sh", hw.rp_ip_address, "killall marcos_server"])
                 self.action_server.setStatusTip('Connect to marcos server')
                 self.action_server.setToolTip('Connect to marcos server')
                 print("Server disconnected")
             else:
                 try:
-                    subprocess.run([hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "killall marcos_server"])
+                    subprocess.run([hw.bash_path, "--", "./communicateRedPitaya.sh", hw.rp_ip_address, "killall marcos_server"])
                     time.sleep(1.5)
-                    subprocess.run([hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "~/marcos_server"])
+                    subprocess.run([hw.bash_path, "--", "./communicateRedPitaya.sh", hw.rp_ip_address, "~/marcos_server"])
                     time.sleep(1.5)
                     self.action_server.setStatusTip('Kill marcos server')
                     self.action_server.setToolTip('Kill marcos server')
@@ -173,8 +175,8 @@ class MarcosController(MarcosToolBar):
         """
         if not self.main.demo:
             try:
-                subprocess.run([hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "killall marcos_server"])
-                subprocess.run([hw.bash_path, '--', './copy_bitstream.sh', hw.rp_ip_address, 'rp-122'], timeout=10)
+                subprocess.run([hw.bash_path , "--", "./communicateRedPitaya.sh", hw.rp_ip_address, "killall marcos_server"])
+                subprocess.run([hw.bash_path , '--', './copy_bitstream.sh', hw.rp_ip_address, 'rp-122'], timeout=10)
                 print("READY: MaRCoS updated")
             except subprocess.TimeoutExpired as e:
                 print("ERROR: MaRCoS init timeout")
