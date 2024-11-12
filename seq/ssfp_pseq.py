@@ -39,7 +39,6 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         # Input the parameters
         self.output = None
         self.expt = None
-        self.freqOffset = None
         self.nScans = None
         self.larmorFreq = None
         self.rfExFA = None
@@ -58,9 +57,8 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         self.sliceGap = None
 
         self.addParameter(key='seqName', string='ssfp', val='ssfp')
-        self.addParameter(key='freqOffset', string='Larmor frequency offset (Hz)', val=0.0, field='RF')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.36, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.365, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         # self.addParameter(key='rfReFA', string='Refocusing flip angle (º)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
@@ -73,7 +71,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 10, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[2,0,1], field='IM',
                           tip="0=x, 1=y, 2=z")
         # self.addParameter(key='files', string='Files', val="/home/lks/MaSeq_pack/MaSeq/pseq_file/ssfp.seq", field='IM', tip='List .seq files')
@@ -92,7 +90,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         
 
     def sequenceTime(self):
-        return (self.repetitionTime * self.nScans * self.nPoints[2] * self.nPoints[1] / 60)  # minutes
+        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['nScans'] * self.mapVals['nPoints'][1] * self.mapVals['nPoints'][2]/ 60)
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
@@ -126,7 +124,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         max_rf_Hz = hw.max_rf * 1e-6 * hw.gammaB
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
-            rf_center=hw.larmorFreq * 1e6 + self.freqOffset,  # Larmor frequency (Hz)
+            rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
             rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
             grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
             grad_t=10,  # Gradient raster time (us)
@@ -303,7 +301,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
                         gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
                         auto_leds=True  # Automatic control of LEDs
                     )
-
+                print(f"Center frequecy set: {frequency} MHz")
                 # Convert the PyPulseq waveform to the Red Pitaya compatible format
                 self.pypulseq2mriblankseq(waveforms=waveforms[seq_num], shimming=self.shimming)
 
@@ -312,7 +310,8 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
                     print("ERROR: Sequence waveforms out of hardware bounds")
                     return False
                 else:
-                    print("Sequence waveforms loaded successfully")
+                    encoding_ok = True
+                    # print("Sequence waveforms loaded successfully")
 
                 # If not plotting the sequence, start scanning
                 if not self.plotSeq:
@@ -328,7 +327,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
                             else:
                                 # In demo mode, generate random data as a placeholder
                                 rxd = {'rx0': np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
-
+                            
                             # Update acquired points
                             acquired_points = np.size(rxd['rx0'])
 
@@ -345,7 +344,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
                     # Decimate the oversampled data and store it
                     self.mapVals['data_over'] = data_over
                     self.mapVals['data_full'] = np.concatenate((self.mapVals['data_full'], self.mapVals['data_over']), axis=0)
-
+                    
                 elif self.plotSeq and self.standalone:
                     # Plot the sequence if requested and return immediately
                     self.sequencePlot(standalone=self.standalone)
@@ -475,7 +474,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
             
             assert runBatches_pseq(batches_list[Cz],
                                n_rd_points_list[Cz],
-                               frequency=hw.larmorFreq + self.freqOffset * 1e-6 + self.rf_slice_freq_offset[Cz],  # MHz
+                               frequency=(self.larmorFreq + self.rf_slice_freq_offset[Cz])*1e-6 ,  # MHz
                                bandwidth=bw_ov,  # MHz
                                )
             
@@ -561,6 +560,8 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         resolution = self.fov / self.nPoints
         self.mapVals['resolution'] = resolution
 
+        
+
         # Get data
         data_full = self.mapVals['data_full']
         nRD, nPH, nSL = self.nPoints
@@ -584,12 +585,12 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
             for scan in range(self.nScans):
                 data_prov[scan, :] = np.reshape(data_full[:, scan, :, :], -1)
         data_full = np.reshape(data_prov, -1)
-
+        
         # Average data
         data_full = np.reshape(data_full, newshape=(self.nScans, -1))
         data = np.average(data_full, axis=0)
         self.mapVals['data'] = data
-
+        
         # Generate different k-space data
         data_ind = np.zeros(shape=(self.etl, nSL, nPH, nRD), dtype=complex)
         data = np.reshape(data, newshape=(nSL, nPH, self.etl, nRD))
@@ -599,13 +600,13 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         # Remove added data in readout direction
         data_ind = data_ind[:, :, :, hw.addRdPoints: nRD - hw.addRdPoints]
         self.mapVals['kSpace'] = data_ind
-
+        
         # Get images
         image_ind = np.zeros_like(data_ind)
         for echo in range(self.etl):
             image_ind[echo] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[echo])))
         self.mapVals['iSpace'] = image_ind
-
+        
         # Prepare data to plot (plot central slice)
         axes_dict = {'x': 0, 'y': 1, 'z': 2}
         axes_keys = list(axes_dict.keys())
@@ -620,6 +621,8 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         # Normalize image
         k_space = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
         image = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
+
+        
         n = 0
         for slice in range(nSL):
             for echo in range(self.etl):
@@ -627,7 +630,8 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
                 image[n, :, :] = np.abs(image_ind[echo, slice, :, :])
                 n += 1
         image = image / np.max(image) * 100
-
+        # plt.plot(np.real(k_space[0,0,:]))
+        # plt.show()
         imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
         if not self.unlock_orientation:  # Image orientation
             pass
@@ -715,6 +719,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
                    'title': "k_space",
                    'row': 0,
                    'col': 1}
+ 
 
         # Dicom tags
         image_DICOM = np.transpose(image, (0, 2, 1))
@@ -755,7 +760,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
