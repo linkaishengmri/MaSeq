@@ -95,7 +95,7 @@ class SessionController(SessionWindow):
             if not self.main_gui.demo:
                 # Close server
                 try:
-                    subprocess.run([hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "killall marcos_server"])
+                    subprocess.run([hw.bash_path, "--", "./communicateRedPitaya.sh", hw.rp_ip_address, "killall marcos_server"])
                 except:
                     print(
                         "ERROR: Server connection not found! Please verify if the blue LED is illuminated on the Red Pitaya.")
@@ -116,7 +116,7 @@ class SessionController(SessionWindow):
                 # Close server
                 try:
                     subprocess.run(
-                        [hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "killall marcos_server"])
+                        [hw.bash_path, "--", "./communicateRedPitaya.sh", hw.rp_ip_address, "killall marcos_server"])
                 except:
                     print(
                         "ERROR: Server connection not found! Please verify if the blue LED is illuminated on the Red Pitaya.")
