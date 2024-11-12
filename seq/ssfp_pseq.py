@@ -90,7 +90,10 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         
 
     def sequenceTime(self):
-        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['nScans'] * self.mapVals['nPoints'][1] * self.mapVals['nPoints'][2]/ 60)
+        return (self.mapVals['repetitionTime'] *1e-3 * 
+                self.mapVals['nScans'] * 
+                self.mapVals['nPoints'][2] * 
+                (self.mapVals['nPoints'][1] + self.mapVals['dummyPulses']) / 60)
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
