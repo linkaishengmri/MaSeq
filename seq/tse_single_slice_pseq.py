@@ -75,7 +75,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[64, 64, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[2,0,1], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
@@ -83,7 +83,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
-        self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=16, field='SEQ')
         self.addParameter(key='effEchoTime', string='Effective echo time(ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
 
@@ -98,7 +98,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
                 self.mapVals['nScans'] *
-                self.self.mapVals['nPoints'][1] / self.mapVals['etl'] * 
+                self.mapVals['nPoints'][1] / self.mapVals['etl'] * 
                 1 / 60)
 
     def sequenceAtributes(self):
@@ -839,9 +839,14 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.meta_data["PixelSpacing"] = [resolution[0], resolution[1]]
         self.meta_data["SliceThickness"] = resolution[2]
         # Sequence parameters
-        # self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
-        # self.meta_data["EchoTime"] = self.mapVals['echoSpacing']
-        # self.meta_data["EchoTrainLength"] = self.mapVals['etl']
+        self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
+        self.meta_data["EchoTime"] = self.mapVals['echoSpacing']
+        self.meta_data["FlipAngle"] = [self.mapVals['rfExFA'], self.mapVals['rfReFA']]
+        self.meta_data["NumberOfAverages"] = self.mapVals['nScans']
+        self.meta_data["EchoTrainLength"] = self.mapVals['etl']
+        
+
+        self.meta_data["ScanningSequence"] = 'TSE'
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]

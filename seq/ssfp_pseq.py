@@ -75,7 +75,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[2,0,1], field='IM',
                           tip="0=x, 1=y, 2=z")
         # self.addParameter(key='files', string='Files', val="/home/lks/MaSeq_pack/MaSeq/pseq_file/ssfp.seq", field='IM', tip='List .seq files')
-        self.addParameter(key='dummyPulses', string='Dummy pulses', val=2, field='SEQ')
+        self.addParameter(key='dummyPulses', string='Dummy pulses', val=100, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
@@ -93,7 +93,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         return (self.mapVals['repetitionTime'] *1e-3 * 
                 self.mapVals['nScans'] * 
                 self.mapVals['nPoints'][2] * 
-                (self.mapVals['nPoints'][1] + self.mapVals['dummyPulses']) / 60)
+                (self.mapVals['nPoints'][1] + self.mapVals['dummyPulses'])) / 60
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
@@ -743,9 +743,14 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
         self.meta_data["PixelSpacing"] = [resolution[0], resolution[1]]
         self.meta_data["SliceThickness"] = resolution[2]
         # Sequence parameters
-        # self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
-        # self.meta_data["EchoTime"] = self.mapVals['echoSpacing']
+        self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
+        self.meta_data["EchoTime"] = self.mapVals['echoTime']
+        self.meta_data["FlipAngle"] = self.mapVals['rfExFA']
+        self.meta_data["NumberOfAverages"] = self.mapVals['nScans']
         # self.meta_data["EchoTrainLength"] = self.mapVals['etl']
+        
+
+        self.meta_data["ScanningSequence"] = 'SSFP'
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]
@@ -763,8 +768,8 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
-    seq.sequenceAnalysis(mode='Standalone')
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceAnalysis(mode=None)#'Standalone')
 
 
 
