@@ -1396,10 +1396,10 @@ class MRIBLANKSEQ:
         
         # Generate filename
         name = datetime.now()
-        name_string = name.strftime("%Y.%m.%d.%H.%M.%S.%f")[:-3]
+        name_string = name.strftime("%Y%m%d_%H%M%S") # name.strftime("%Y.%m.%d.%H.%M.%S.%f")[:-3]
         self.mapVals['name_string'] = name_string
         if hasattr(self, 'raw_data_name'):
-            file_name = "%s.%s" % (self.raw_data_name, name_string)
+            file_name = "%s_%s" % (self.raw_data_name, name_string)
         else:
             self.raw_data_name = self.mapVals['seqName']
             file_name = "%s.%s" % (self.mapVals['seqName'], name_string)
