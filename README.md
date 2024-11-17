@@ -1,5 +1,5 @@
 # MaSeq
-Pypulseq Interpreter in [MaGRE](https://github.com/josalggui/MaRGE.git) and [Marcos](https://github.com/josalggui/MaRGE.git) System
+Pypulseq Interpreter in [MaGRE](https://github.com/josalggui/MaRGE/wiki) and [Marcos](https://github.com/vnegnev/marcos_extras/wiki) System
 
 This repository is a fork of the [josalggui/MaGRE](https://github.com/josalggui/MaRGE.git) repository. We have extended MaGRE by integrating the Pypulseq interpreter to enhance the system's functionality.
  
@@ -30,7 +30,7 @@ cd ~/<your_work_folder>/MaSeq_pack
 
 ### 1. Clone the required repositories in the folder of the client computer:
 ```
-git clone https://github.com/vnegnev/marcos_client.git
+git clone https://github.com/linkaishengmri/marcos_client.git
 git clone https://github.com/vnegnev/marcos_server.git
 git clone https://github.com/vnegnev/marcos_extras.git
 git clone https://github.com/linkaishengmri/MaSeq.git
@@ -52,7 +52,7 @@ Contains information about:
 Contains settings related to:
 - GUI session display
 
-2.4. `units.py` in the `MaRGE/configs` folder
+2.4. `units.py` in the `MaSeq/configs` folder
 Typically doesn't need modification.
 
 
@@ -69,4 +69,10 @@ bash_path = "gnome-terminal"
 ### 4. Install required modules:
 ```
 pip install -r requirements.txt
+```
+### 5. Run GUI:
+```
+cd MaSeq
+unset GTK_PATH
+python main.py
 ```
