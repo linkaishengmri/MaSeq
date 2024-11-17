@@ -18,8 +18,8 @@ class PseqInterpreter(PSInterpreter):
                  rx_gate_mode = 0, # 0: no rx_gate output, 1: [TODO] set rx_gate as 2nd TX_gate 
                  tx_ch = 0, # TX channel index: either 0 or 1
                  rx_ch = 0, # RX channel index: either 0 or 1. [TODO] Both 0 and 1 is under construction
-                 grad_eff = [0.4113, 0.9094,1.0000]  # gradient coefficient of efficiency
-                 ):
+                 grad_eff = [0.4113, 0.9094,1.0000],  # gradient coefficient of efficiency
+                 use_multi_freq = False,):
         """
         Create PSInterpreter object for FLOCRA with system parameters.
 
@@ -58,11 +58,14 @@ class PseqInterpreter(PSInterpreter):
         self._tx_ch = tx_ch
         self._rx_ch = rx_ch
         self._grad_eff = grad_eff
-
+        self._use_multi_freq = use_multi_freq
+        self._freq_offset = {}
          # Redefine var_name
         self._var_names = ('tx0', 'tx1', 'grad_vx', 'grad_vy', 'grad_vz', 'grad_vz2',
          'rx0_en', 'rx1_en', 'rx_gate' ,'tx_gate')
-
+        if use_multi_freq:
+            self._var_names = self._var_names + ('lo0_freq_offset', 'lo1_freq_offset', 'lo0_rst', 'lo1_rst')
+            
     # Encode all blocks
     def _stream_all_blocks(self):
         """
@@ -215,6 +218,7 @@ class PseqInterpreter(PSInterpreter):
                 f'Tx warmup ({self._tx_warmup}) of RF event {tx_id} is longer than delay ({self._tx_times[tx_id][0]})')
             out_dict['tx_gate'] = (np.array([tx_gate_start, self._tx_durations[tx_id]]),
                 np.array([1, 0]))
+            
 
         # Gradient updates
         for grad_ch in ('gx', 'gy', 'gz'):
@@ -285,6 +289,13 @@ class PseqInterpreter(PSInterpreter):
                 f'Tx warmup ({self._tx_warmup}) of RF event {tx_id} is longer than delay ({self._tx_times[tx_id][0]})')
             out_dict['tx_gate'] = (np.array([tx_gate_start, self._tx_durations[tx_id]]),
                 np.array([1, 0]))
+            if self._use_multi_freq:
+                lofreq_start_time = self._tx_times[tx_id][0] - self._tx_warmup / 2 
+                out_dict['lo'+tx_ch_name[2]+'_freq_offset'] = (np.array([lofreq_start_time]),np.array([self._freq_offset[tx_id]]))
+                out_dict['lo'+tx_ch_name[2]+'_rst'] = (np.array([lofreq_start_time, lofreq_start_time+1/122.88]),np.array([1, 0]))
+                
+                
+
 
         # Gradient updates
         for grad_ch in ('gx', 'gy', 'gz'):
@@ -343,6 +354,108 @@ class PseqInterpreter(PSInterpreter):
             param_dict[key] = value
         print(f'read {len(self._definitions)} definitions, {len(self._blocks)} blocks, {len(self._shapes)} shapes, {len(self._adc_events)} adc events, {len(self._rf_events)} rf events, {len(self._grad_events)} gradient shapes')
         return (self.out_data, param_dict)
+    
+    def _read_pulseq(self, pulseq_file):
+        # Open file
+        with open(pulseq_file) as f:
+            self._logger.info('Opening PulSeq file...')
+            line = '\n'
+            next_line = ''
+
+            while True:
+                if not next_line:
+                    line = f.readline()
+                else:
+                    line = next_line
+                    next_line = ''
+                if line == '': break
+                key = self._simplify(line)
+                if key in self._pulseq_keys:
+                    next_line = self._pulseq_keys[key](f)
+
+        # Check that all ids are valid
+        self._logger.info('Validating ids...')
+        if self._version_major == 1 and self._version_minor <= 3:
+            var_names = ('delay', 'rf', 'gx', 'gy', 'gz', 'adc', 'ext')
+            var_dicts = [self._delay_events, self._rf_events, self._grad_events, self._grad_events, self._grad_events, self._adc_events, {}]
+            for block in self._blocks.values():
+                for i in range(len(var_names)):
+                    id_n = block[var_names[i]]
+                    self._error_if(id_n != 0 and id_n not in var_dicts[i], f'Invalid {var_names[i]} id: {id_n}')
+            for rf in self._rf_events.values():
+                self._error_if(rf['mag_id'] not in self._shapes, f'Invalid magnitude shape id: {rf["mag_id"]}')
+                self._error_if(rf['phase_id'] not in self._shapes, f'Invalid phase shape id: {rf["phase_id"]}')
+            for grad in self._grad_events.values():
+                if len(grad) == 3:
+                    self._error_if(grad['shape_id'] not in self._shapes, f'Invalid grad shape id: {grad["shape_id"]}')
+            self._logger.info('Valid ids')
+
+            # Check that all delays are multiples of clk_t
+            for events in [self._blocks.values(), self._rf_events.values(), self._grad_events.values(),
+                            self._adc_events.values()]:
+                for event in events:
+                    self._warning_if(int(event['delay'] / self._clk_t) * self._clk_t != event['delay'],
+                        f'Event delay {event["delay"]} is not a multiple of clk_t')
+            for delay in self._delay_events.values():
+                self._warning_if(int(delay / self._clk_t) * self._clk_t != delay,
+                    f'Delay event {delay} is not a multiple of clk_t')
+        else:
+            # version >= 1.4
+            var_names = ('rf', 'gx', 'gy', 'gz', 'adc', 'ext')
+            var_dicts = [self._rf_events, self._grad_events, self._grad_events, self._grad_events, self._adc_events, {}]
+            for block in self._blocks.values():
+                for i in range(len(var_names)):
+                    id_n = block[var_names[i]]
+                    self._error_if(id_n != 0 and id_n not in var_dicts[i], f'Invalid {var_names[i]} id: {id_n}')
+            for rf in self._rf_events.values():
+                self._error_if(rf['mag_id'] not in self._shapes, f'Invalid magnitude shape id: {rf["mag_id"]}')
+                self._error_if(rf['phase_id'] not in self._shapes, f'Invalid phase shape id: {rf["phase_id"]}')
+            for grad in self._grad_events.values():
+                if len(grad) == 3:
+                    self._error_if(grad['shape_id'] not in self._shapes, f'Invalid grad shape id: {grad["shape_id"]}')
+            self._logger.info('Valid ids')
+
+        if self._use_multi_freq:
+            for rf_id, rf in self._rf_events.items():
+                self._freq_offset[rf_id] = rf['freq'] * 1e-6
+                
+        else:
+            # Check that RF/ADC (TX/RX) only have one frequency offset -- can't be set within one file.
+            freq = None
+            base_id = None
+            base_str = None
+            for rf_id, rf in self._rf_events.items():
+                if freq is None:
+                    freq = rf['freq']
+                    base_id = rf_id
+                    base_str = 'RF'
+                self._error_if(rf['freq'] != freq, f"Frequency offset of RF event {rf_id} ({rf['freq']}) doesn't match that of {base_str} event {base_id} ({freq})")
+            for adc_id, adc in self._adc_events.items():
+                if freq is None:
+                    freq = adc['freq']
+                    base_id = adc_id
+                    base_str = 'ADC'
+                self._error_if(adc['freq'] != freq, f"Frequency offset of ADC event {adc_id} ({adc['freq']}) doesn't match that of {base_str} event {base_id} ({freq})")
+            if freq is not None and freq != 0:
+                self._rf_center += freq
+                self._logger.info(f'Adding freq offset {freq} Hz. New center / linear oscillator frequency: {self._rf_center}')
+
+        # Check that ADC has constant dwell time
+        dwell = None
+        for adc_id, adc in self._adc_events.items():
+            if dwell is None:
+                dwell = adc['dwell']/1000
+                base_id = adc_id
+            self._error_if(adc['dwell']/1000 != dwell, f"Dwell time of ADC event {adc_id} ({adc['dwell']}) doesn't match that of ADC event {base_id} ({dwell})")
+        if dwell is not None:
+            self._rx_div = np.round(dwell / self._clk_t).astype(int)
+            self._rx_t = self._clk_t * self._rx_div
+            self._warning_if(self._rx_div * self._clk_t != dwell,
+                f'Dwell time ({dwell}) rounded to {self._rx_t}, multiple of clk_t ({self._clk_t})')
+
+        self._logger.info('PulSeq file loaded')
+
+        
 
 
 # Sample usage
