@@ -99,12 +99,17 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         # Calculate slice positions
         slice_positions = (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
 
+        # slice idx
+        slice_idx = np.concatenate((np.arange(self.nPoints[2])[::2],np.arange(self.nPoints[2])[1::2]))
+        self.mapVals['sliceIdx'] = slice_idx
+
         # Reorder slices for an interleaved acquisition (optional)
-        slice_positions = np.concatenate((slice_positions[::2], slice_positions[1::2]))
+        slice_positions = slice_positions[slice_idx]
 
         # redefine fov using slice thickness and gap
         self.fov = [self.fovInPlane[0], self.fovInPlane[1], np.max(slice_positions)-np.min(slice_positions)+self.thickness]       
 
+        
         '''
         Step 1: Define the interpreter for FloSeq/PSInterpreter.
         The interpreter is responsible for converting the high-level pulse sequence description into low-level
@@ -290,7 +295,8 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
                         rx_t=1 / bandwidth,  # Sampling time in us
                         init_gpa=False,  # Whether to initialize GPA board (False for now)
                         gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
-                        auto_leds=True  # Automatic control of LEDs
+                        auto_leds=True,  # Automatic control of LEDs
+                        allow_user_init_cfg=True # Allow lo*_freq and lo*_rst to be modified
                     )
                 print(f"Center frequecy set: {frequency} MHz")
                 # Convert the PyPulseq waveform to the Red Pitaya compatible format
@@ -307,7 +313,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
                 # If not plotting the sequence, start scanning
                 if not self.plotSeq:
                     for scan in range(self.nScans):
-                        print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{self.nPoints[2]} running...")
+                        print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{1} running...")
                         acquired_points = 0
                         expected_points = n_readouts[seq_num] * hw.oversamplingFactor  # Expected number of points
 
@@ -330,7 +336,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
                         # Concatenate acquired data into the oversampled data array
                         data_over = np.concatenate((data_over, rxd['rx0']), axis=0)
                         print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
-                        print(f"Scan {scan + 1}, batch {seq_num[-1]}/{self.nPoints[2]} ready!")
+                        print(f"Scan {scan + 1}, batch {seq_num[-1]}/{1} ready!")
 
                     # Decimate the oversampled data and store it
                     self.mapVals['data_over'] = data_over
@@ -587,11 +593,14 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         data = np.average(data_full, axis=0)
         self.mapVals['data'] = data
         
+        slice_idx = self.mapVals['sliceIdx']
+        data_arrange_slice = np.zeros(shape=(nSL, nPH, nRD), dtype=complex)
+        data_shape = np.reshape(data, newshape=(nPH, nSL, nRD))
+        for s_i in range(nSL):
+            data_arrange_slice[slice_idx[s_i], :, :] = data_shape[:, s_i, :]
+
         # Generate different k-space data
-        data_ind = np.zeros(shape=(self.etl, nSL, nPH, nRD), dtype=complex)
-        data = np.reshape(data, newshape=(nSL, nPH, self.etl, nRD))
-        for echo in range(self.etl):
-            data_ind[echo, :, :, :] = np.squeeze(data[:, :, echo, :])
+        data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
 
         # Remove added data in readout direction
         data_ind = data_ind[:, :, :, hw.addRdPoints: nRD - hw.addRdPoints]
@@ -630,7 +639,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         # plt.show()
         imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
         if not self.unlock_orientation:  # Image orientation
-            pass
+            
             if self.axesOrientation[2] == 2:  # Sagittal
                 title = "Sagittal"
                 if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:  # OK
@@ -736,9 +745,13 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         self.meta_data["PixelSpacing"] = [resolution[0], resolution[1]]
         self.meta_data["SliceThickness"] = resolution[2]
         # Sequence parameters
-        # self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
-        # self.meta_data["EchoTime"] = self.mapVals['echoSpacing']
+        self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
+        self.meta_data["EchoTime"] = self.mapVals['echoTime']
+        self.meta_data["FlipAngle"] = self.mapVals['rfExFA']
+        self.meta_data["NumberOfAverages"] = self.mapVals['nScans']
         # self.meta_data["EchoTrainLength"] = self.mapVals['etl']
+        
+        self.meta_data["ScanningSequence"] = 'SSFP'
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]
@@ -756,7 +769,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPMSPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

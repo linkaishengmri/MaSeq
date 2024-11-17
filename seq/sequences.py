@@ -43,6 +43,7 @@ import seq.mse_pp_jma as mse_jma
 import seq.ssfp_pseq as ssfp_pseq
 import seq.fid_sinc_pseq as fid_sinc_pseq
 import seq.tse_single_slice_pseq as tse_single_slice_pseq
+import seq.ssfp_multislice_pseq as ssfp_multislice_pseq
 
 # class RARE(rare.RARE):
 #     def __init__(self): super(RARE, self).__init__()
@@ -125,11 +126,17 @@ import seq.tse_single_slice_pseq as tse_single_slice_pseq
 class SSFPPSEQ(ssfp_pseq.SSFPPSEQ):
     def __init__(self): super(SSFPPSEQ, self).__init__()
 
+    
+
 class FidSincPSEQ(fid_sinc_pseq.FidSincPSEQ):
     def __init__(self): super(FidSincPSEQ, self).__init__()
 
 class TSESingleSlicePSEQ(tse_single_slice_pseq.TSESingleSlicePSEQ):
     def __init__(self): super(TSESingleSlicePSEQ, self).__init__()
+
+class SSFPMSPSEQ(ssfp_multislice_pseq.SSFPMSPSEQ):
+    def __init__(self): super(SSFPMSPSEQ, self).__init__()
+
 """
 Definition of default sequences
 """
@@ -170,5 +177,7 @@ defaultsequences = {
     'ssfp_pseq': ssfp_pseq.SSFPPSEQ(),
     'fid_sinc_pseq': fid_sinc_pseq.FidSincPSEQ(),
     'tse_single_slice_pseq': tse_single_slice_pseq.TSESingleSlicePSEQ(),
+    'ssfp_multislice_pseq': ssfp_multislice_pseq.SSFPMSPSEQ(),
+    
     
 }
