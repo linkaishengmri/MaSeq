@@ -19,7 +19,8 @@ class PseqInterpreter(PSInterpreter):
                  tx_ch = 0, # TX channel index: either 0 or 1
                  rx_ch = 0, # RX channel index: either 0 or 1. [TODO] Both 0 and 1 is under construction
                  grad_eff = [0.4113, 0.9094,1.0000],  # gradient coefficient of efficiency
-                 use_multi_freq = False,):
+                 use_multi_freq = False,
+                 add_rx_points = 0):
         """
         Create PSInterpreter object for FLOCRA with system parameters.
 
@@ -59,6 +60,7 @@ class PseqInterpreter(PSInterpreter):
         self._rx_ch = rx_ch
         self._grad_eff = grad_eff
         self._use_multi_freq = use_multi_freq
+        self._add_rx_points = add_rx_points 
         self._freq_offset = {}
          # Redefine var_name
         self._var_names = ('tx0', 'tx1', 'grad_vx', 'grad_vy', 'grad_vz', 'grad_vz2',
@@ -316,8 +318,9 @@ class PseqInterpreter(PSInterpreter):
             rx_event = self._adc_events[rx_id]
             rx_start = rx_event['delay']
             rx_end = rx_start + rx_event['num'] * self._rx_t
+            rx_add_points_start = rx_start - self._add_rx_points * self._rx_t
             readout_num += rx_event['num']
-            out_dict[rx_ch_name] = (np.array([rx_start, rx_end]), np.array([1, 0]))
+            out_dict[rx_ch_name] = (np.array([rx_add_points_start, rx_end]), np.array([1, 0]))
             # duration = max(duration, rx_end)
 
         # Return durations for each PR and leading edge values
@@ -454,7 +457,9 @@ class PseqInterpreter(PSInterpreter):
                 f'Dwell time ({dwell}) rounded to {self._rx_t}, multiple of clk_t ({self._clk_t})')
 
         self._logger.info('PulSeq file loaded')
-
+        
+    def del_rx_points_added(self, rxdata):
+        return rxdata[self._add_rx_points:]
         
 
 

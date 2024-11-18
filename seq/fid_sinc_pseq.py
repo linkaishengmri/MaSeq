@@ -93,6 +93,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
+            add_rx_points = 6,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
         assert (self.rxChannel == 0 or self.rxChannel == 1)
@@ -213,7 +214,9 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
                         rxd = {self.rxChName: np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
 
                     # Update acquired points
-                    acquired_points = np.size(rxd[self.rxChName])
+                    rx_raw_data = rxd[self.rxChName]
+                    rxdata = self.flo_interpreter.del_rx_points_added(rx_raw_data)
+                    acquired_points = np.size(rxdata)
 
                     # Check if acquired points coincide with expected points
                     if acquired_points != expected_points:
@@ -221,7 +224,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
                         print("Repeating batch...")
 
                 # Concatenate acquired data into the oversampled data array
-                data_over = np.concatenate((data_over, rxd[self.rxChName]), axis=0)
+                data_over = np.concatenate((data_over, rxdata), axis=0)
                 print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
                 print(f"Scan {scan + 1}, ready!")
                 # plt.plot(data_over)

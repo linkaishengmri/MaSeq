@@ -69,7 +69,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 10, 4], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 200, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[2,0,1], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=2, field='SEQ')
@@ -769,7 +769,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPMSPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
