@@ -402,7 +402,7 @@ class SSFPPSEQ(blankSeq.MRIBLANKSEQ):
                 # Phase encoding gradients, combined with slice selection rephaser
                 pe_index_y, pe_index_z = phase_encode_table[max(Cy, 0)]
                 
-                gx_pre = pp.make_trapezoid(channel="x", area=0.5 * gx.area, duration=self.DephTime, system=self.system)
+                gx_pre = pp.make_trapezoid(channel="x", area=-0.5 * gx.area, duration=self.DephTime, system=self.system)
                 gy_pre = pp.make_trapezoid(channel="y", area=phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system)
                 gz_pre = pp.make_trapezoid(channel="z", area=phase_areas_z[pe_index_z] - gz.area / 2, duration=self.DephTime, system=self.system)
                 batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)

@@ -63,7 +63,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.365, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.356623073073077, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
@@ -75,16 +75,16 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[64, 64, 1], field='IM')
-        self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[2,0,1], field='IM',
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
-        self.addParameter(key='etl', string='Echo train length', val=16, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time(ms)', val=20.0, units=units.ms, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time(ms)', val=320.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
 
     def sequenceInfo(self):
@@ -149,7 +149,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         slew rates, and dead times. They are typically set based on the hardware configuration file (`hw_config`).
         '''
         self.system = pp.Opts(
-            rf_dead_time=hw.blkTime * 1e-6,  # Dead time between RF pulses (s)
+            rf_dead_time=100 * 1e-6,  # Dead time between RF pulses (s)
             max_grad=30,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
@@ -812,7 +812,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                    'col': 0}
 
         result2 = {'widget': 'image',
-                   'data': np.log10(k_space),
+                   'data': np.log10(k_space+0.01),
                    'xLabel': x_label,
                    'yLabel': y_label,
                    'title': "k_space",

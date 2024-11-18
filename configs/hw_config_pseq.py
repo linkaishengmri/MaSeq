@@ -1,6 +1,6 @@
 import numpy as np
 Central_freq = 10.36e6 #Hz
-gradFactor = [0.4113, 0.9094,1.0000] # (X, Y, Z) in T/m/o.u.
+gradFactor = [1.0000, 0.9094,0.4113] # (X, Y, Z) in T/m/o.u.
 max_rf = 50 # uT
 max_grad = 120  # mT/m
 max_slew_rate = 50e-3  # mT/m/ms

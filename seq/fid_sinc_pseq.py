@@ -55,7 +55,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='fid', val='fid')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.36, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35640, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000.0, units=units.ms, field='SEQ')
@@ -93,7 +93,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
-            add_rx_points = 6,
+            add_rx_points = 10,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
         assert (self.rxChannel == 0 or self.rxChannel == 1)
