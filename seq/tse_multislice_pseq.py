@@ -64,7 +64,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.356784784784786, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35696, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
@@ -76,10 +76,10 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 64, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 4, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
@@ -146,7 +146,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             orientation=self.axesOrientation, # gradient orientation
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             use_multi_freq = True,
-            add_rx_points = 7
+            add_rx_points = 0
         )
         
         '''
@@ -164,7 +164,10 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             rise_time=hw.grad_rise_time,  # Gradient rise time (s)
             rf_raster_time=1e-6,
             block_duration_raster=1e-6,
-            adc_raster_time=1/(122.88e6)
+            adc_raster_time=1/(122.88e6),
+            adc_dead_time=10e-6,
+            rf_ringdown_time=100e-6,
+
         )
 
         '''
@@ -468,6 +471,8 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                 else:
                     encoding_ok = True
                     # print("Sequence waveforms loaded successfully")
+                if self.plotSeq:
+                    self.expt.plot_sequence()
 
                 # If not plotting the sequence, start scanning
                 if not self.plotSeq:
@@ -482,7 +487,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                                 rxd, msgs = self.expt.run()  # Run the experiment and collect data
                             else:
                                 # In demo mode, generate random data as a placeholder
-                                rxd = {'rx0': np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
+                                rxd = {'rx0': np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
                             
                             # Update acquired points
                             self.rxChName = 'rx0'
@@ -705,8 +710,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         data_shape = np.reshape(data, newshape=(n_ex, nSL, self.etl, nRD))
         
         kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
-        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq) 
-
+        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq)
         data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
 
         # for s_i in range(nSL):
@@ -900,7 +904,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSESingleSlicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

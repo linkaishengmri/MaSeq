@@ -905,7 +905,7 @@ class MRIBLANKSEQ:
 
         if standalone:
             # Create plot window
-            fig, axes = plt.subplots(3, 1, figsize=(10, 5))
+            fig, axes = plt.subplots(3, 1, figsize=(10, 5),sharex=True)
 
             # Insert plots
             plot = 0
