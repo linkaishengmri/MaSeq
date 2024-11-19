@@ -65,7 +65,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoTime', string='Echo time (ms)', val=10.0, units=units.ms, field='SEQ')
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
-        self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
+        self.addParameter(key='sliceGap', string='slice gap (mm)', val=6, units=units.mm, field='IM')
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
@@ -246,6 +246,9 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         assert delay_TE >= 0
         assert delay_TR >= 0
         
+        delay_TR_each_time = np.round (( delay_TR / self.nPoints[2])
+                / self.system.grad_raster_time
+            ) * self.system.grad_raster_time 
         
         
 
@@ -428,8 +431,8 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
                     gx_post = pp.make_trapezoid(channel="x", area=0.5 * gx.area, duration=self.DephTime, system=self.system)
                     batches[batch_num].add_block(gx_post, gy_post, gz_post)
 
-                # wait for TR
-                batches[batch_num].add_block(pp.make_delay(delay_TR))
+                    # wait for TR
+                    batches[batch_num].add_block(pp.make_delay(delay_TR_each_time))
 
                 
             # Check whether the timing of the sequence is correct
@@ -769,7 +772,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPMSPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
