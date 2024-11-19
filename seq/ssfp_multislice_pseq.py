@@ -69,7 +69,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 2], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256,1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=100, field='SEQ')
@@ -488,75 +488,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         return True
 
         
-
-
-
-    def sequenceAnalysis2(self, mode=None):
-        return
-        data_over = []  # To save oversampled data
-        for file in self.files:
-            print("Running " + file + "...")
-            # Get the dwell time and n_readouts
-            n_readouts, dwell = get_seq_info(file)  # dwell is in ns
-
-            # Create experiment
-            if not self.demo:
-                self.expt = ex.Experiment(lo_freq=self.larmorFreq * 1e-6,  # MHz
-                                          rx_t=dwell * 1e-3,  # us
-                                          init_gpa=init_gpa,
-                                          gpa_fhdo_offset_time=(1 / 0.2 / 3.1),
-                                          )
-                dwell = self.expt.get_rx_ts()[0]
-            bw = 1/dwell * 1e9  # Hz
-            self.mapVals['samplingPeriod'] = dwell * 1e-9  # s
-            self.mapVals['bw'] = bw  # Hz
-
-            # Run the interpreter to get the waveforms
-            waveforms, param_dict = self.flo_interpreter.interpret(file)
-
-            # Get number of Rx windows
-            n_rx_windows = int(np.sum(waveforms['rx0_en'][1][:]))
-
-            # Convert waveform to mriBlankSeq tools (just do it)
-            self.pypulseq2mriblankseq(waveforms=waveforms, shimming=self.shimming)
-
-            if not self.demo:
-                if self.floDict2Exp():
-                    print("Sequence waveforms loaded successfully")
-                    pass
-                else:
-                    print("ERROR: sequence waveforms out of hardware bounds")
-                    return False
-
-            # Run the experiment
-            if not plotSeq:
-                for scan in range(self.nScans):
-                    print("Scan %i running..." % (scan + 1))
-                    if not self.demo:
-                        rxd, msgs = self.expt.run()
-                        rxd['rx0'] = hw.adcFactor * (np.real(rxd['rx0']) - 1j * np.imag(rxd['rx0']))
-                    else:
-                        rxd = {'rx0': np.random.randn(n_readouts * n_rx_windows) +
-                                      1j * np.random.randn(n_readouts * n_rx_windows)}
-                    data_over = np.concatenate((data_over, rxd['rx0']), axis=0)
-                    print("Acquired points = %i" % np.size([rxd['rx0']]))
-                    print("Expected points = %i" % n_readouts * n_rx_windows)
-                    print("Scan %i ready!" % (scan + 1))
-                    self.mapVals['data_over'] = data_over
-            elif plotSeq and standalone:
-                self.sequencePlot(standalone=standalone)
-                return True
-
-            # Close the experiment
-            if not self.demo:
-                self.expt.__del__()
-        # Process data to be plotted
-        if not plotSeq:
-            self.mapVals['data_over'] = data_over
-            data_full = data_over# sig.decimate(data_over, hw.oversamplingFactor, ftype='fir', zero_phase=True)
-            self.mapVals['data_full'] = data_full
-        return True
-
+ 
     def sequenceAnalysis(self, mode=None):
         self.mode = mode
         self.etl = 1 # for ssfp
@@ -772,7 +704,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPMSPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

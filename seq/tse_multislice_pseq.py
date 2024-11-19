@@ -60,10 +60,11 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.sliceGap = None
         self.etl = None
         self.effEchoTime = None
+        self.phaseCycleRef = None
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.356623073073077, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.356784784784786, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
@@ -75,7 +76,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 64, 3], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 64, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
@@ -83,9 +84,11 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
-        self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
         self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=80.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
+        self.addParameter(key='phaseCycleRef', string='Phase cycle for refocusing', val=[0], field='SEQ')
+        
 
     def sequenceInfo(self):
         print("Pulseq Reader")
@@ -143,6 +146,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             orientation=self.axesOrientation, # gradient orientation
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             use_multi_freq = True,
+            add_rx_points = 7
         )
         
         '''
@@ -481,7 +485,11 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                                 rxd = {'rx0': np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
                             
                             # Update acquired points
-                            acquired_points = np.size(rxd['rx0'])
+                            self.rxChName = 'rx0'
+                            rx_raw_data = rxd[self.rxChName]
+                            rxdata = self.flo_interpreter.rx_points_added_for_img(rx_raw_data, self.nPoints[0])
+                            rxdata = np.reshape(rxdata, newshape=(-1))
+                            acquired_points = np.size(rxdata)
 
                             # Check if acquired points coincide with expected points
                             if acquired_points != expected_points:
@@ -489,7 +497,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                                 print("Repeating batch...")
 
                         # Concatenate acquired data into the oversampled data array
-                        data_over = np.concatenate((data_over, rxd['rx0']), axis=0)
+                        data_over = np.concatenate((data_over, rxdata), axis=0)
                         print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
                         print(f"Scan {scan + 1}, batch {seq_num[-1]}/{1} ready!")
 
@@ -548,10 +556,13 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                         np.pi / 2
                         - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
                     )
-                    rf_ref.phase_offset = (
-                        0 
-                        - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
-                    )
+                    rf_ref_cycle = 90 / 180 * np.tile(np.array(self.phaseCycleRef), n_echo // len(self.phaseCycleRef))* np.pi
+                    rf_ref_offset_for_slice = - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
+                    rf_ref_offset = rf_ref_offset_for_slice + rf_ref_cycle
+                    # rf_ref.phase_offset = (
+                    #     0 
+                    #     - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
+                    # )
                     batches[batch_num].add_block(gs1)
                     batches[batch_num].add_block(gs2, rf_ex)
                     batches[batch_num].add_block(gs3, gr3)
@@ -577,6 +588,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                             duration=t_sp,
                             rise_time=dG,
                         )
+                        rf_ref.phase_offset = rf_ref_offset[k_echo]
                         batches[batch_num].add_block(gs4, rf_ref)
                         batches[batch_num].add_block(gs5, gr5, gp_pre)
                         if k_ex > 0:
@@ -695,6 +707,8 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
         data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq) 
 
+        data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
+
         # for s_i in range(nSL):
         #     for ex_i in range(n_ex):
         #         data_arrange_slice[slice_idx[s_i], ex_i, :, :] = data_shape[ex_i, s_i, :, :]
@@ -722,7 +736,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         # Get images
         image_ind = np.zeros_like(data_ind)
         im = ifft_2d(data_ind[0])
-        image_ind[0, :, :, :] = im
+        image_ind[0] = im
 
         # for echo in range(1):
         #     image_ind[echo] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[echo])))
@@ -886,7 +900,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSESingleSlicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
