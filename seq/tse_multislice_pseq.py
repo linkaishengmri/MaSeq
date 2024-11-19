@@ -1,5 +1,5 @@
 """
-Created on Tuesday, Nov 12nd 2024
+Created on Tuesday, Nov 18th 2024
 @author: Kaisheng Lin, School of Electronics, Peking University, China
 @Summary: TSE sequence (RARE), implemented with PyPulseq and compatible with MaSeq.
 """
@@ -23,13 +23,13 @@ for subdir in subdirs:
     full_path = os.path.join(parent_directory, subdir)
     sys.path.append(full_path)
 #******************************************************************************
-from seq.utils import sort_data_implicit
+from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 import pypulseq as pp
 import numpy as np
 import seq.mriBlankSeq as blankSeq   
 import configs.units as units
 import scipy.signal as sig
-import experiment as ex
+import experiment_multifreq as ex
 import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
@@ -57,7 +57,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.DephTime = None
         self.shimming = None
         self.thickness = None
-        # self.sliceGap = None
+        self.sliceGap = None
         self.etl = None
         self.effEchoTime = None
 
@@ -72,10 +72,10 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[200, 200], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
-        # self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
+        self.addParameter(key='sliceGap', string='slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 64, 3], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
@@ -84,7 +84,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
         self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time(ms)', val=320.0, units=units.ms, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=80.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
 
     def sequenceInfo(self):
@@ -98,8 +98,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
                 self.mapVals['nScans'] *
-                self.mapVals['nPoints'][1] / self.mapVals['etl'] * 
-                1 / 60)
+                self.mapVals['nPoints'][1] / self.mapVals['etl'] / 60)
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
@@ -113,15 +112,17 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.demo = demo
         self.plotSeq = plotSeq
         self.standalone = standalone
-
-        self.nPoints[2] = 1 # This file is for single slice
         
         # Calculate slice positions
-        slice_positions = 0 # (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
+        slice_positions = (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
+
+        # slice idx
+        slice_idx = np.concatenate((np.arange(self.nPoints[2])[::2],np.arange(self.nPoints[2])[1::2]))
+        self.mapVals['sliceIdx'] = slice_idx
 
         # Reorder slices for an interleaved acquisition (optional)
-        slice_positions = 0 # np.concatenate((slice_positions[::2], slice_positions[1::2]))
-
+        slice_positions = slice_positions[slice_idx]
+        
         # redefine fov using slice thickness and gap
         self.fov = [self.fovInPlane[0], self.fovInPlane[1], np.max(slice_positions)-np.min(slice_positions)+self.thickness]       
         
@@ -140,7 +141,8 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
             grad_t=10,  # Gradient raster time (us)
             orientation=self.axesOrientation, # gradient orientation
-            grad_eff=hw.gradFactor # gradient coefficient of efficiency
+            grad_eff=hw.gradFactor, # gradient coefficient of efficiency
+            use_multi_freq = True,
         )
         
         '''
@@ -178,7 +180,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         '''
 
         if not self.demo:
-            expt = ex.Experiment(
+            expt = ex.ExperimentMultiFreq(
                 lo_freq=hw.larmorFreq,  # Larmor frequency in MHz
                 rx_t=sampling_period,  # Sampling time in us
                 init_gpa=False,  # Whether to initialize GPA board (False for True)
@@ -297,7 +299,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         # if divmod(n_echo, 2)[1] == 0:
         #     pe_steps = np.roll(pe_steps, [0, int(-np.round(n_ex / 2))])
         
-        shift_steps = np.ceil(Ny / 2 + (TE_eff / TE -1)*n_echo) 
+        shift_steps = np.round(TE_eff/TE - n_echo // 2 - 1) * n_ex
         pe_steps = np.roll(pe_steps, [0, int(shift_steps)])
 
         pe_order = pe_steps.reshape((n_ex, n_echo), order="F").T
@@ -466,7 +468,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                 # If not plotting the sequence, start scanning
                 if not self.plotSeq:
                     for scan in range(self.nScans):
-                        print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{self.nPoints[2]} running...")
+                        print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{1} running...")
                         acquired_points = 0
                         expected_points = n_readouts[seq_num] * hw.oversamplingFactor  # Expected number of points
 
@@ -489,7 +491,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                         # Concatenate acquired data into the oversampled data array
                         data_over = np.concatenate((data_over, rxd['rx0']), axis=0)
                         print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
-                        print(f"Scan {scan + 1}, batch {seq_num[-1]}/{self.nPoints[2]} ready!")
+                        print(f"Scan {scan + 1}, batch {seq_num[-1]}/{1} ready!")
 
                     # Decimate the oversampled data and store it
                     self.mapVals['data_over'] = data_over
@@ -535,48 +537,60 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             
 
             for k_ex in range(n_ex + 1):
-
-                batches[batch_num].add_block(gs1)
-                batches[batch_num].add_block(gs2, rf_ex)
-                batches[batch_num].add_block(gs3, gr3)
-
-                for k_echo in range(n_echo):
-
+                for s in range(n_slices):
+                    rf_ex.freq_offset = (
+                        gs_ex.amplitude * slice_positions[s]
+                    )
+                    rf_ref.freq_offset = (
+                        gs_ref.amplitude * slice_positions[s]
+                    )
+                    rf_ex.phase_offset = (
+                        np.pi / 2
+                        - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
+                    )
+                    rf_ref.phase_offset = (
+                        0 
+                        - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
+                    )
+                    batches[batch_num].add_block(gs1)
+                    batches[batch_num].add_block(gs2, rf_ex)
+                    batches[batch_num].add_block(gs3, gr3)
                     
+                    for k_echo in range(n_echo):
 
-                    if k_ex > 0:
-                        phase_area = phase_areas[k_echo, k_ex - 1]
-                    else:
-                        phase_area = 0.0  # 0.0 and not 0 because -phase_area should successfully result in negative zero
+                        if k_ex > 0:
+                            phase_area = phase_areas[k_echo, k_ex - 1]
+                        else:
+                            phase_area = 0.0  # 0.0 and not 0 because -phase_area should successfully result in negative zero
 
-                    gp_pre = pp.make_trapezoid(
-                        channel="y",
-                        system=self.system,
-                        area=phase_area,
-                        duration=t_sp,
-                        rise_time=dG,
-                    )
-                    gp_rew = pp.make_trapezoid(
-                        channel="y",
-                        system=self.system,
-                        area=-phase_area,
-                        duration=t_sp,
-                        rise_time=dG,
-                    )
-                    batches[batch_num].add_block(gs4, rf_ref)
-                    batches[batch_num].add_block(gs5, gr5, gp_pre)
-                    if k_ex > 0:
-                        batches[batch_num].add_block(gr6, adc)
-                        assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
-                        n_rd_points = n_rd_points + self.nPoints[0]
-                    else:
-                        batches[batch_num].add_block(gr6)
+                        gp_pre = pp.make_trapezoid(
+                            channel="y",
+                            system=self.system,
+                            area=phase_area,
+                            duration=t_sp,
+                            rise_time=dG,
+                        )
+                        gp_rew = pp.make_trapezoid(
+                            channel="y",
+                            system=self.system,
+                            area=-phase_area,
+                            duration=t_sp,
+                            rise_time=dG,
+                        )
+                        batches[batch_num].add_block(gs4, rf_ref)
+                        batches[batch_num].add_block(gs5, gr5, gp_pre)
+                        if k_ex > 0:
+                            batches[batch_num].add_block(gr6, adc)
+                            assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
+                            n_rd_points = n_rd_points + self.nPoints[0]
+                        else:
+                            batches[batch_num].add_block(gr6)
 
-                    batches[batch_num].add_block(gs7, gr7, gp_rew)
+                        batches[batch_num].add_block(gs7, gr7, gp_rew)
 
-                batches[batch_num].add_block(gs4)
-                batches[batch_num].add_block(gs5)
-                batches[batch_num].add_block(delay_TR)
+                    batches[batch_num].add_block(gs4)
+                    batches[batch_num].add_block(gs5)
+                    batches[batch_num].add_block(delay_TR)
 
             (
                 ok,
@@ -590,11 +604,9 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                     print("Timing check failed. Error listing follows:")
                     [print(e) for e in error_report]
                 print(batches[batch_num].test_report())
-                
-            if plotSeq:
                 batches[batch_num].plot()
 
-            batches[batch_num].set_definition(key="Name", value="ssfp")
+            batches[batch_num].set_definition(key="Name", value="tse")
             batches[batch_num].set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(batch_num + ".seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
@@ -616,36 +628,25 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.n_rd_points_dict = {}
         # self.rf_slice_freq_offset = []
         self.mapVals['data_full'] = []
-        for Cz in range(self.nPoints[2]):
+        
             
-            batch_num = f"batch_{batch_idx}"  # Initial batch name
-            print(f"Creating {batch_num}.seq...")
-            batches[batch_num] = pp.Sequence(system=self.system)
+        batch_num = f"batch_{batch_idx}"  # Initial batch name
+        print(f"Creating {batch_num}.seq...")
+        batches[batch_num] = pp.Sequence(system=self.system)
 
-            # RF offset here 
-            # rf_ex.freq_offset=gs_ex.amplitude*slice_positions[Cz]
-            # rf_ref.freq_offset=gs_ref.amplitude*slice_positions[Cz]
-            # rf_ex.phase_offset=-2*np.pi*rf_ex.freq_offset*pp.calc_rf_center(rf_ex)[0] # compensate for the slice-offset induced phase
-            # rf_ref.phase_offset=-2*np.pi*rf_ref.freq_offset*pp.calc_rf_center(rf_ref)[0] # compensate for the slice-offset induced phase
-            # adc.freq_offset=rf_ex.freq_offset
-            createBatches()
-            # self.rf_slice_freq_offset.append(rf_ex.freq_offset)
-            batch_idx = batch_idx + 1
+        createBatches()
 
-
-        # run batches (one batch represent one slice)
-        for Cz in range(self.nPoints[2]):
-            batches_list = [{key: value} for key, value in self.waveforms.items()]
-            n_rd_points_list = [{key: value} for key, value in self.n_rd_points_dict.items()]
-            
-            assert runBatches_pseq(batches_list[Cz],
-                               n_rd_points_list[Cz],
-                               frequency=(self.larmorFreq + 0)*1e-6 ,  # MHz
-                               bandwidth=bw_ov,  # MHz
-                               )
+        batches_list = [{key: value} for key, value in self.waveforms.items()]
+        n_rd_points_list = [{key: value} for key, value in self.n_rd_points_dict.items()]
+        
+        assert runBatches_pseq(batches_list[0],
+                            n_rd_points_list[0],
+                            frequency=(self.larmorFreq)*1e-6 ,  # MHz
+                            bandwidth=bw_ov,  # MHz
+                            )
             
         self.mapVals['n_readouts'] = list(self.n_rd_points_dict.values())
-        self.mapVals['n_batches'] = self.nPoints[2]
+        self.mapVals['n_batches'] = 1
         return True
 
         
@@ -686,24 +687,45 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         data = np.average(data_full, axis=0)
         self.mapVals['data'] = data
 
+        # slice_idx = self.mapVals['sliceIdx']
+        n_ex = int(np.floor(self.nPoints[1] / self.etl))
+        # data_arrange_slice = np.zeros(shape=(nSL, n_ex, self.etl, nRD), dtype=complex)
+        data_shape = np.reshape(data, newshape=(n_ex, nSL, self.etl, nRD))
         
-        
-        # Generate different k-space data
-        # data_ind = np.zeros(shape=(self.etl, nSL, nPH, nRD), dtype=complex)
-        # data = np.reshape(data, newshape=(nSL, nPH, 1, nRD))
+        kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
+        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq) 
 
-        # Generate k-space data from raw data (ONLY ONE SLICE)
-        chNum = 1 
-        data_ind = np.reshape(data, newshape=(chNum, nPH, nRD))
-        kspace = sort_data_implicit(kdata=data_ind, seq=self.lastseq, shape=(1,nPH,nRD)) 
+        # for s_i in range(nSL):
+        #     for ex_i in range(n_ex):
+        #         data_arrange_slice[slice_idx[s_i], ex_i, :, :] = data_shape[ex_i, s_i, :, :]
 
-        data_ind = np.reshape(kspace, newshape=(1,1,nPH, nRD))
+        # # Generate different k-space data
+        # data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
+
+    
+        # chNum = 1 
+        # kspace_single_slice = np.zeros([nSL, nPH, nRD], dtype=complex)
+        # for s_i in range(nSL):
+        #     data_ind = np.reshape(data_ind[0, s_i, :, :], newshape=(chNum, nPH, nRD))
+        #     kspace_single_slice[s_i, : ,:] = sort_data_implicit(kdata=data_ind, seq=self.lastseq, shape=(1, nPH, nRD)) 
+
+        # data_ind = np.reshape(kspace_single_slice, newshape=(1, nSL,nPH, nRD))
         self.mapVals['kSpace'] = data_ind
+
+        # plot #0 slice: #####################################
+        # first_slice_kspace = np.reshape(data_ind[0, 0, :, :], newshape=(nPH, nRD))
+        # plot_nd(first_slice_kspace, vmax=10)
+        # plt.title('K-space')
+        ######################################################
+
         
         # Get images
         image_ind = np.zeros_like(data_ind)
-        for echo in range(1):
-            image_ind[echo] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[echo])))
+        im = ifft_2d(data_ind[0])
+        image_ind[0, :, :, :] = im
+
+        # for echo in range(1):
+        #     image_ind[echo] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[echo])))
         self.mapVals['iSpace'] = image_ind
         
         # Prepare data to plot (plot central slice)
@@ -864,7 +886,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSESingleSlicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
