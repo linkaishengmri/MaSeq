@@ -463,6 +463,8 @@ class PseqInterpreter(PSInterpreter):
     def get_add_rx_points(self):
         return self._add_rx_points
     def rx_points_added_for_img(self, rxdata, Rd):
+        if self._add_rx_points == 0:
+            return rxdata
         rxdataadd = np.reshape(rxdata, newshape=(-1, Rd+self._add_rx_points))
         rxdataremove = rxdataadd[:, self._add_rx_points:]
         return rxdataremove

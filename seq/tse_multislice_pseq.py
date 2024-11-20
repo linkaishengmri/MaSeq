@@ -34,9 +34,9 @@ import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
 
-class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
+class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(TSESingleSlicePSEQ, self).__init__()
+        super(TSEMultislicePSEQ, self).__init__()
         # Input the parameters
         self.output = None
         self.expt = None
@@ -64,7 +64,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35696, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35752, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
@@ -76,7 +76,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 4, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
@@ -87,7 +87,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
         self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=80.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
-        self.addParameter(key='phaseCycleRef', string='Phase cycle for refocusing', val=[0], field='SEQ')
+        self.addParameter(key='phaseCycleRef', string='Phase cycle for refocusing', val=[0, 0], field='SEQ')
         
 
     def sequenceInfo(self):
@@ -142,11 +142,12 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
             rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
             grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
-            grad_t=50,  # Gradient raster time (us)
+            grad_t=10,  # Gradient raster time (us)
             orientation=self.axesOrientation, # gradient orientation
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             use_multi_freq = True,
-            add_rx_points = 0
+            add_rx_points = 0,
+            tx_t= 1229/122.88 # us
         )
         
         '''
@@ -160,12 +161,12 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
             slew_unit='mT/m/ms',  # Units of gradient slew rate
-            grad_raster_time=50e-6, # hw.grad_raster_time,  # Gradient raster time (s)
+            grad_raster_time=hw.grad_raster_time, # hw.grad_raster_time,  # Gradient raster time (s)
             rise_time=hw.grad_rise_time,  # Gradient rise time (s)
-            rf_raster_time=1e-6,
+            rf_raster_time=10e-6,
             block_duration_raster=1e-6,
             adc_raster_time=1/(122.88e6),
-            adc_dead_time=0e-6,
+            adc_dead_time=10e-6,
             rf_ringdown_time=100e-6,
             
 
@@ -454,19 +455,20 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             for seq_num in waveforms.keys():
                 # Initialize the experiment if not in demo mode
                 if not self.demo:
-                    self.expt = ex.Experiment(
+                    self.expt = ex.ExperimentMultiFreq(
                         lo_freq=frequency,  # Larmor frequency in MHz
                         rx_t=1 / bandwidth,  # Sampling time in us
                         init_gpa=False,  # Whether to initialize GPA board (False for now)
                         gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
-                        auto_leds=True  # Automatic control of LEDs
+                        auto_leds=True,  # Automatic control of LEDs
+                        allow_user_init_cfg=True # Allow lo*_freq and lo*_rst to be modified
                     )
                 print(f"Center frequecy set: {frequency} MHz")
                 # Convert the PyPulseq waveform to the Red Pitaya compatible format
-                self.pypulseq2mriblankseq(waveforms=waveforms[seq_num], shimming=self.shimming)
+                self.pypulseq2mriblankseq_ms(waveforms=waveforms[seq_num], shimming=self.shimming)
 
                 # Load the waveforms into Red Pitaya
-                if not self.floDict2Exp():
+                if not self.floDict2Exp_ms():
                     print("ERROR: Sequence waveforms out of hardware bounds")
                     return False
                 else:
@@ -562,7 +564,10 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
                         np.pi / 2
                         - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
                     )
-                    rf_ref_cycle = 90 / 180 * np.tile(np.array(self.phaseCycleRef), n_echo // len(self.phaseCycleRef))* np.pi
+                    if self.etl == 1:
+                        rf_ref_cycle = np.array([0.])
+                    else:
+                        rf_ref_cycle = np.tile(np.array(self.phaseCycleRef), n_echo // len(self.phaseCycleRef)) * 0.5 * np.pi
                     rf_ref_offset_for_slice = - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     rf_ref_offset = rf_ref_offset_for_slice + rf_ref_cycle
                     # rf_ref.phase_offset = (
@@ -711,7 +716,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         data_shape = np.reshape(data, newshape=(n_ex, nSL, self.etl, nRD))
         
         kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
-        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq)
+        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq, shape=(nSL, nPH, nRD))
         data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
 
         # for s_i in range(nSL):
@@ -903,9 +908,9 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
  
     
 if __name__ == '__main__':
-    seq = TSESingleSlicePSEQ()
+    seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
