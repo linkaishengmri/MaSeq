@@ -73,7 +73,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[200, 200], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
-        self.addParameter(key='sliceGap', string='slice gap (mm)', val=6, units=units.mm, field='IM')
+        self.addParameter(key='sliceGap', string='Slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
         self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 4, 1], field='IM')
@@ -142,7 +142,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
             rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
             grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
-            grad_t=10,  # Gradient raster time (us)
+            grad_t=50,  # Gradient raster time (us)
             orientation=self.axesOrientation, # gradient orientation
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             use_multi_freq = True,
@@ -160,13 +160,14 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
             slew_unit='mT/m/ms',  # Units of gradient slew rate
-            grad_raster_time=hw.grad_raster_time,  # Gradient raster time (s)
+            grad_raster_time=50e-6, # hw.grad_raster_time,  # Gradient raster time (s)
             rise_time=hw.grad_rise_time,  # Gradient rise time (s)
             rf_raster_time=1e-6,
             block_duration_raster=1e-6,
             adc_raster_time=1/(122.88e6),
-            adc_dead_time=10e-6,
+            adc_dead_time=0e-6,
             rf_ringdown_time=100e-6,
+            
 
         )
 
@@ -904,7 +905,7 @@ class TSESingleSlicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSESingleSlicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
