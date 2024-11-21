@@ -7,6 +7,7 @@ protocols
 .idea/
 configs/units.py
 configs/hw_config.py
+configs/hw_config_pseq.py
 *.dcm
 *.pptx
 configs/sys_config.py

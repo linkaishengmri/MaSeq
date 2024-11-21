@@ -82,7 +82,7 @@ class MarcosController(MarcosToolBar):
         subnet = '10.42.0.'
         timeout = 0.1  # Adjust timeout value as needed
 
-        for i in range(91,93):  # Scan IP range 192.168.1.101 to 192.168.1.132
+        for i in range(1,255):  # Scan IP range 192.168.1.101 to 192.168.1.132
             ip = subnet + str(i)
             try:
                 if platform.system() == 'Linux':
