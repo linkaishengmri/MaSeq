@@ -70,6 +70,16 @@ bash_path = "gnome-terminal"
 ```
 pip install -r requirements.txt
 ```
+If you have errors:
+```
+File "/home/lks/marcos_pack/marcos_client/marcompile.py", line 295, in cl2ol
+    old_val_unmasked = current_bufs[buf] & ~mask
+OverflowError: Python integer -65 out of bounds for uint16
+```
+then 
+```
+pip install numpy==1.26.4
+```
 ### 5. Run GUI:
 ```
 cd MaSeq
