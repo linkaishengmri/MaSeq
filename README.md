@@ -86,3 +86,5 @@ cd MaSeq
 unset GTK_PATH
 python main.py
 ```
+
+end
