@@ -1,5 +1,5 @@
 """
-Created on Tuesday, Nov 11st 2024
+Created on Tuesday, Nov 20th 2024
 @author: Kaisheng Lin, School of Electronics, Peking University, China
 @Summary: FID sequence (with SINC RF pulse), implemented with PyPulseq and compatible with MaSeq.
 """
@@ -34,9 +34,9 @@ from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
 from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
-class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
+class FidRectPSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(FidSincPSEQ, self).__init__()
+        super(FidRectPSEQ, self).__init__()
         # Input the parameters
         self.output = None
         self.expt = None
@@ -44,7 +44,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
         self.nScans = None
         self.larmorFreq = None
         self.rfExFA = None
-        self.rfSincExTime = None
+        self.rfRectExTime = None
         self.repetitionTime = None
         self.deadTime = None
         self.nPoints = None
@@ -58,7 +58,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35640, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
-        self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
+        self.addParameter(key='rfRectExTime', string='RF rect excitation time (us)', val=500, units=units.us, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000.0, units=units.ms, field='SEQ')
         self.addParameter(key='deadTime', string='Dead time (us)', val=400, units=units.us, field='RF')
         self.addParameter(key='nPoints', string='nPoints', val=2048, field='IM')
@@ -133,21 +133,20 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['sampling_period_us'] = sampling_period
         self.mapVals['acqTime'] = self.nPoints / bw * 1e-3 # ms
 
-        rf = pp.make_sinc_pulse(
+        rf = pp.make_block_pulse(
             flip_angle=self.rfExFA * np.pi / 180,
-            duration=self.rfSincExTime,
-            apodization=0.42,
-            time_bw_product=4,
+            duration=self.rfRectExTime,
             system=self.system,
-            return_gz=False
+            phase_offset=0.0,
+            delay=0,
         )
-
+       
         readout_duration = sampling_period * 1e-6 * self.nPoints
         print(f'dwell time: {sampling_period} us, readout time: {readout_duration} s')
         
         deadDelay = pp.make_delay(self.deadTime)
         adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration)
-        recovery_time = self.repetitionTime - self.rfSincExTime - self.deadTime - readout_duration
+        recovery_time = self.repetitionTime - self.rfRectExTime - self.deadTime - readout_duration
         assert recovery_time > 0
         recoveryDelay = pp.make_delay(recovery_time)
         
@@ -212,7 +211,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
                         rxd, msgs = self.expt.run()  # Run the experiment and collect data
                     else:
                         # In demo mode, generate random data as a placeholder
-                        rxd = {np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
+                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
                             
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
@@ -268,8 +267,8 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
         bw = self.mapVals['bw_MHz']*1e3 # kHz
         nPoints = self.mapVals['nPoints']
         deadTime = self.mapVals['deadTime']*1e-3 # ms
-        rfSincExTime = self.mapVals['rfSincExTime']*1e-3 # ms
-        tVector = np.linspace(rfSincExTime/2 + deadTime + 0.5/bw, rfSincExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
+        rfRectExTime = self.mapVals['rfRectExTime']*1e-3 # ms
+        tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
         fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
@@ -323,7 +322,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
  
     
 if __name__ == '__main__':
-    seq = FidSincPSEQ()
+    seq = FidRectPSEQ()
     seq.sequenceAtributes()
     seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
