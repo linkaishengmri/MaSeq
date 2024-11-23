@@ -70,10 +70,10 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 16,1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 16,2], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
-        self.addParameter(key='dummyPulses', string='Dummy pulses', val=0, field='SEQ')
+        self.addParameter(key='dummyPulses', string='Dummy pulses', val=20, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
@@ -209,10 +209,10 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 
         # Phase encoding
         phase_areas_y = (np.arange(self.nPoints[1]) - self.nPoints[1] // 2) * delta_ky
-        phase_areas_z = (np.arange(self.nPoints[2]) - self.nPoints[2] // 2) * delta_kz
+        # phase_areas_z = (np.arange(self.nPoints[2]) - self.nPoints[2] // 2) * delta_kz
 
         # Phase encoding table with YZ order (outer loop = Z, inner loop = Y)
-        phase_encode_table = [(y,z) for z in range(len(phase_areas_z)) for y in range(len(phase_areas_y))]
+        phase_encode_table = [y for y in range(len(phase_areas_y))]
         
         TE = self.echoTime
         TR = self.repetitionTime
@@ -413,11 +413,12 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
                     batches[batch_num].add_block(pp.make_delay(delay_TE))
 
                     # Phase encoding gradients, combined with slice selection rephaser
-                    pe_index_y, pe_index_z = phase_encode_table[max(Cy, 0)]
+                    # pe_index_y, pe_index_z = phase_encode_table[max(Cy, 0)]
+                    pe_index_y = phase_encode_table[max(Cy, 0)]
                     
                     gx_pre = pp.make_trapezoid(channel="x", area=-0.5 * gx.area, duration=self.DephTime, system=self.system)
                     gy_pre = pp.make_trapezoid(channel="y", area=phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system)
-                    gz_pre = pp.make_trapezoid(channel="z", area=phase_areas_z[pe_index_z] - gz.area / 2, duration=self.DephTime, system=self.system)
+                    gz_pre = pp.make_trapezoid(channel="z", area= -gz.area / 2, duration=self.DephTime, system=self.system)
                     batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)
 
                     # Readout, do not enable ADC/labels for dummy acquisitions
@@ -429,7 +430,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 
                     # Balance phase encoding and slice selection gradients
                     gy_post = pp.make_trapezoid(channel="y", area=-phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system) #jl
-                    gz_post = pp.make_trapezoid(channel="z", area=-phase_areas_z[pe_index_z] - gz.area / 2, duration=self.DephTime, system=self.system) #jl
+                    gz_post = pp.make_trapezoid(channel="z", area=-gz.area / 2, duration=self.DephTime, system=self.system) #jl
                     gx_post = pp.make_trapezoid(channel="x", area=0.5 * gx.area, duration=self.DephTime, system=self.system)
                     batches[batch_num].add_block(gx_post, gy_post, gz_post)
 
@@ -706,7 +707,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPMSPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
