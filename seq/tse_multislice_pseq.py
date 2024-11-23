@@ -60,7 +60,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.sliceGap = None
         self.etl = None
         self.effEchoTime = None
-        self.phaseCycleRef = None
+        self.phaseCycleEx = None
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -84,10 +84,11 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
-        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=16, field='SEQ')
         self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=80.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
-        self.addParameter(key='phaseCycleRef', string='Phase cycle for refocusing', val=[0, 0], field='SEQ')
+        self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
+                          tip="List of phase values for cycling the excitation pulse.")
         
 
     def sequenceInfo(self):
@@ -550,9 +551,10 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             """
             
             n_rd_points = 0
-            
+            rf_ex_cycle = np.tile(np.array(self.phaseCycleEx), int(np.ceil((n_ex+1) / len(self.phaseCycleEx)))) / 180 * np.pi
 
             for k_ex in range(n_ex + 1):
+                    
                 for s in range(n_slices):
                     rf_ex.freq_offset = (
                         gs_ex.amplitude * slice_positions[s]
@@ -561,15 +563,11 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                         gs_ref.amplitude * slice_positions[s]
                     )
                     rf_ex.phase_offset = (
-                        np.pi / 2
+                        np.pi / 2 + rf_ex_cycle[k_ex]
                         - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
                     )
-                    if self.etl == 1:
-                        rf_ref_cycle = np.array([0.])
-                    else:
-                        rf_ref_cycle = np.tile(np.array(self.phaseCycleRef), n_echo // len(self.phaseCycleRef)) * 0.5 * np.pi
                     rf_ref_offset_for_slice = - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
-                    rf_ref_offset = rf_ref_offset_for_slice + rf_ref_cycle
+                    rf_ref_offset = rf_ref_offset_for_slice + 0
                     # rf_ref.phase_offset = (
                     #     0 
                     #     - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
@@ -599,7 +597,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                             duration=t_sp,
                             rise_time=dG,
                         )
-                        rf_ref.phase_offset = rf_ref_offset[k_echo]
+                        # rf_ref.phase_offset = rf_ref_offset[k_echo]
                         batches[batch_num].add_block(gs4, rf_ref)
                         batches[batch_num].add_block(gs5, gr5, gp_pre)
                         if k_ex > 0:
@@ -910,7 +908,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
