@@ -43,7 +43,6 @@ import seq.mse_pp_jma as mse_jma
 import seq.ssfp_pseq as ssfp_pseq
 import seq.fid_sinc_pseq as fid_sinc_pseq
 import seq.tse_multislice_pseq as tse_multislice_pseq
-import seq.ssfp_singleslice_pseq as ssfp_singleslice_pseq
 
 # class RARE(rare.RARE):
 #     def __init__(self): super(RARE, self).__init__()
