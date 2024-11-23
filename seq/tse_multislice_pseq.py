@@ -64,7 +64,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35752, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35206, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')

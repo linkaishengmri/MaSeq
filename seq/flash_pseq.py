@@ -61,7 +61,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.RFSpoilPhase = None
         self.phaseGradSpoilMode = None
 
-        self.addParameter(key='seqName', string='ssfp', val='ssfp')
+        self.addParameter(key='seqName', string='flash', val='ssfp')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35676, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=30, field='RF')
@@ -74,7 +74,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 16, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=5, field='SEQ')
@@ -86,7 +86,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
                           tip='4 times of frequency encoding gradient is recommended')
         self.addParameter(key='RFSpoilPhase', string='RF Spoiling Phase', val=117, field='OTH',
                           tip='117 deg is recommended')
-        self.addParameter(key='phaseGradSpoilMode', string='Phase Encoding Spoiling', val=0, field='OTH',
+        self.addParameter(key='phaseGradSpoilMode', string='Phase Encoding Spoiling', val=1, field='OTH',
                           tip='0: Without phase spoiling, 1: with phase spoiling.')
  
     def sequenceInfo(self):
@@ -402,7 +402,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
                 
                 for Cz in range(self.nPoints[2]):
                     # RF offset here 
-                    rand_phase = (117 * (Cy ** 2 + Cy + 2) % 360) * np.pi / 180
+                    rand_phase = (self.RFSpoilPhase * (Cy ** 2 + Cy + 2) % 360) * np.pi / 180
 
                     rf.freq_offset=gz.amplitude*slice_positions[Cz]
                     rf.phase_offset=rand_phase-2*np.pi*rf.freq_offset*pp.calc_rf_center(rf)[0] # compensate for the slice-offset induced phase
@@ -690,7 +690,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.meta_data["NumberOfAverages"] = self.mapVals['nScans']
         # self.meta_data["EchoTrainLength"] = self.mapVals['etl']
         
-        self.meta_data["ScanningSequence"] = 'SSFP'
+        self.meta_data["ScanningSequence"] = 'FLASH'
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]
@@ -708,7 +708,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = FLASHPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
