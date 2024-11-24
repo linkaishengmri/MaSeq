@@ -65,6 +65,7 @@ class PseqInterpreter(PSInterpreter):
          # Redefine var_name
         self._var_names = ('tx0', 'tx1', 'grad_vx', 'grad_vy', 'grad_vz', 'grad_vz2',
          'rx0_en', 'rx1_en', 'rx_gate' ,'tx_gate')
+        self._rx_phase_dict = {'rx0': np.array([], dtype=complex), 'rx1':  np.array([], dtype=complex)}
         if use_multi_freq:
             self._var_names = self._var_names + ('lo0_freq_offset', 'lo1_freq_offset', 'lo0_rst', 'lo1_rst')
             
@@ -321,6 +322,9 @@ class PseqInterpreter(PSInterpreter):
             rx_add_points_start = rx_start - self._add_rx_points * self._rx_t
             readout_num += rx_event['num']
             out_dict[rx_ch_name] = (np.array([rx_add_points_start, rx_end]), np.array([1, 0]))
+            
+            rx_name = rx_ch_name[0:3]
+            self._rx_phase_dict[rx_name] = np.concatenate((self._rx_phase_dict[rx_name], np.array([np.exp(1j * rx_event['phase'])])))
             # duration = max(duration, rx_end)
 
         # Return durations for each PR and leading edge values
@@ -468,6 +472,12 @@ class PseqInterpreter(PSInterpreter):
         rxdataadd = np.reshape(rxdata, newshape=(-1, Rd+self._add_rx_points))
         rxdataremove = rxdataadd[:, self._add_rx_points:]
         return rxdataremove
+    
+    def get_rx_phase_dict(self):
+        return self._rx_phase_dict
+    
+
+
 # Sample usage
 if __name__ == '__main__':
     ps = PSInterpreter(grad_t=1)

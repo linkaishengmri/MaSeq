@@ -74,7 +74,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 2], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=5, field='SEQ')
@@ -424,7 +424,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
                         num_samples=Nx,
                         duration=gx.flat_time,
                         delay=gx.rise_time,
-                        # phase_offset=rand_phase, # not available so far due to limitation of interperter and hardware
+                        phase_offset=rand_phase, # set phase offset
                     )
                     adc.freq_offset=rf.freq_offset
                     if Cy >= 0:  # Negative index -- dummy scans
@@ -525,7 +525,14 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
             data_full = np.reshape(data_full, (1, self.nScans, -1, nRD))
             for scan in range(self.nScans):
                 data_prov[scan, :] = np.reshape(data_full[:, scan, :, :], -1)
-        data_full = np.reshape(data_prov, -1)
+        
+        # [TODO]: Add Rx phase here
+        expiangle = self.flo_interpreter.get_rx_phase_dict()['rx0']
+        raw_data = np.reshape(data_prov, newshape=(1, self.nScans, -1, nRD))
+        for scan in range(self.nScans):
+            for line in range(raw_data.shape[2]):
+                raw_data[0, scan, line, :] = raw_data[0, scan, line, :] * expiangle[line]
+        data_full = np.reshape(raw_data, -1)
         
         # Average data
         data_full = np.reshape(data_full, newshape=(self.nScans, -1))
@@ -708,7 +715,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = FLASHPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
