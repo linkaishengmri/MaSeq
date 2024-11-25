@@ -61,7 +61,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.RFSpoilPhase = None
         self.phaseGradSpoilMode = None
 
-        self.addParameter(key='seqName', string='flash', val='ssfp')
+        self.addParameter(key='seqName', string='flash', val='flash')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35676, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=30, field='RF')
@@ -74,7 +74,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 2], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=5, field='SEQ')
