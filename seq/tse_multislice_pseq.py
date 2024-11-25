@@ -61,6 +61,8 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.etl = None
         self.effEchoTime = None
         self.phaseCycleEx = None
+        self.fsp_r = None
+        self.fsp_s = None
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -76,19 +78,23 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 3], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
-                          tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
+                          tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
         self.addParameter(key='etl', string='Echo train length', val=16, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=80.0, units=units.ms, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=160.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
+        self.addParameter(key='fsp_r', string='Readout Spoiling', val=2, field='OTH',
+                          tip="Gradient spoiling for readout.")
+        self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
+                          tip="Gradient spoiling for slice.")
         
 
     def sequenceInfo(self):
@@ -223,8 +229,8 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         t_refwd = t_ref + self.system.rf_ringdown_time + self.system.rf_dead_time
         t_sp = 0.5 * (TE - readout_time - t_refwd)
         t_spex = 0.5 * (TE - t_exwd - t_refwd)
-        fsp_r = 2
-        fsp_s = 4
+        fsp_r = self.fsp_r
+        fsp_s = self.fsp_s
         
 
         rf_ex, gz, _ = pp.make_sinc_pulse(
@@ -568,6 +574,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                     )
                     rf_ref_offset_for_slice = - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     rf_ref_offset = rf_ref_offset_for_slice + 0
+                    adc.phase_offset = rf_ex_cycle[k_ex]
                     # rf_ref.phase_offset = (
                     #     0 
                     #     - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
@@ -701,7 +708,14 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             data_full = np.reshape(data_full, (1, self.nScans, -1, nRD))
             for scan in range(self.nScans):
                 data_prov[scan, :] = np.reshape(data_full[:, scan, :, :], -1)
-        data_full = np.reshape(data_prov, -1)
+        
+        # [TODO]: Add Rx phase here
+        expiangle = self.flo_interpreter.get_rx_phase_dict()['rx0']
+        raw_data = np.reshape(data_prov, newshape=(1, self.nScans, -1, nRD))
+        for scan in range(self.nScans):
+            for line in range(raw_data.shape[2]):
+                raw_data[0, scan, line, :] = raw_data[0, scan, line, :] * expiangle[line]
+        data_full = np.reshape(raw_data, -1)
         
         # Average data
         data_full = np.reshape(data_full, newshape=(self.nScans, -1))
@@ -908,7 +922,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
