@@ -1756,11 +1756,20 @@ class MRIBLANKSEQ:
         for item in self.output:
             if item['widget'] == 'image':
                 nz, ny, nx = item['data'].shape
-                plt.subplot(rows, cols, plot + 1)
-                plt.imshow(item['data'][int(nz / 2), :, :], cmap='gray')
-                plt.title(item['title'])
-                plt.xlabel(item['xLabel'])
-                plt.ylabel(item['yLabel'])
+                # plt.subplot(rows, cols, plot + 1)
+                # plt.imshow(item['data'][int(nz / 2), :, :], cmap='gray')
+                # plt.title(item['title'])
+                # plt.xlabel(item['xLabel'])
+                # plt.ylabel(item['yLabel'])
+                for z in range(nz):
+                    plt.figure(z, figsize=(10, 5))  # Open a new figure
+                    plt.subplot(rows, cols, plot + 1)
+                    plt.imshow(item['data'][z, :, :], cmap='gray')
+                    plt.title(f"{item['title']} - Layer {z + 1}")
+                    plt.xlabel(item['xLabel'])
+                    plt.ylabel(item['yLabel'])
+                    plt.suptitle(self.mapVals['fileName'])
+                    plt.tight_layout()
             elif item['widget'] == 'curve':
                 plt.subplot(rows, cols, plot + 1)
                 n = 0
