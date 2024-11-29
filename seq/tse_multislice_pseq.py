@@ -78,7 +78,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 3], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
@@ -173,7 +173,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             rf_raster_time=10e-6,
             block_duration_raster=1e-6,
             adc_raster_time=1/(122.88e6),
-            adc_dead_time=10e-6,
+            adc_dead_time=0e-6,
             rf_ringdown_time=100e-6,
             
 
