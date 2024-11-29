@@ -1762,7 +1762,7 @@ class MRIBLANKSEQ:
                 # plt.xlabel(item['xLabel'])
                 # plt.ylabel(item['yLabel'])
                 for z in range(nz):
-                    plt.figure(z, figsize=(10, 5))  # Open a new figure
+                    plt.figure(z + 1, figsize=(10, 5))  # Open a new figure
                     plt.subplot(rows, cols, plot + 1)
                     plt.imshow(item['data'][z, :, :], cmap='gray')
                     plt.title(f"{item['title']} - Layer {z + 1}")
