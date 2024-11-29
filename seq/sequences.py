@@ -43,7 +43,7 @@ import seq.mse_pp_jma as mse_jma
 import seq.ssfp_pseq as ssfp_pseq
 import seq.fid_sinc_pseq as fid_sinc_pseq
 import seq.tse_multislice_pseq as tse_multislice_pseq
-
+import seq.flash_pseq as flash_pseq
 # class RARE(rare.RARE):
 #     def __init__(self): super(RARE, self).__init__()
 
@@ -136,6 +136,9 @@ class TSEMultislicePSEQ(tse_multislice_pseq.TSEMultislicePSEQ):
 class SSFPMSPSEQ(ssfp_pseq.SSFPMSPSEQ):
     def __init__(self): super(SSFPMSPSEQ, self).__init__()
 
+class FLASHPSEQ(flash_pseq.FLASHPSEQ):
+    def __init__(self): super(FLASHPSEQ, self).__init__()
+
 """
 Definition of default sequences
 """
@@ -177,6 +180,6 @@ defaultsequences = {
     'fid_sinc_pseq': fid_sinc_pseq.FidSincPSEQ(),
     'tse_multislice_pseq': tse_multislice_pseq.TSEMultislicePSEQ(),
     'ssfp_pseq': ssfp_pseq.SSFPMSPSEQ(),
-    
+    'flash_pseq': flash_pseq.FLASHPSEQ(),
     
 }
