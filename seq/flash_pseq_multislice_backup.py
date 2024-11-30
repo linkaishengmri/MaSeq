@@ -74,7 +74,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 3], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=5, field='SEQ')
@@ -95,7 +95,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
-                self.mapVals['nScans'] * self.mapVals['nPoints'][2]
+                self.mapVals['nScans'] * 
                 (self.mapVals['nPoints'][1] + self.mapVals['dummyPulses']) / 60)
 
     def sequenceAtributes(self):
@@ -244,7 +244,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
                  - pp.calc_duration(gz) 
                  - pp.calc_duration(gx) 
                  - pp.calc_duration(gx_post, gy_post, gz_post)
-                 - delay_te) *1,
+                 - delay_te) * self.nPoints[2],
             self.system.grad_raster_time,
         )
  
@@ -389,52 +389,55 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
             print(f"Creating {batch_num}.seq...")
             batches[batch_num] = pp.Sequence(system=self.system)
 
-            for Cz in range(self.nPoints[2]):
            
-                for Cy in range(-self.dummyPulses, self.nPoints[1]):
-                    # In a single slice, rd points must be less than hw.maxRdPoints
+                
+                # self.rf_slice_freq_offset.append(rf.freq_offset)
+                # batch_idx = batch_idx + 1
+            for Cy in range(-self.dummyPulses, self.nPoints[1]):
+                # In a single slice, rd points must be less than hw.maxRdPoints
+                
+                if Cy >= 0:
+                    assert n_rd_points + self.nPoints[2] * self.nPoints[0] <= hw.maxRdPoints
+                    n_rd_points = n_rd_points + self.nPoints[2] * self.nPoints[0]
+                
+                for Cz in range(self.nPoints[2]):
+                    # RF offset here 
+                    rand_phase = (self.RFSpoilPhase * (Cy ** 2 + Cy + 2) % 360) * np.pi / 180
+
+                    rf.freq_offset=gz.amplitude*slice_positions[Cz]
+                    rf.phase_offset=rand_phase-2*np.pi*rf.freq_offset*pp.calc_rf_center(rf)[0] # compensate for the slice-offset induced phase
                     
+                    # RF excitation and slice/slab selection gradient
+                    batches[batch_num].add_block(rf, gz)
+
                     if Cy >= 0:
-                        assert n_rd_points + self.nPoints[0] <= hw.maxRdPoints
-                        n_rd_points = n_rd_points +  self.nPoints[0]
+                        gy_pre = pp.make_trapezoid(channel="y", area=phase_areas[Cy], duration=self.DephTime, system=self.system)
+                    else:
+                        gy_pre = pp.make_trapezoid(channel="y", area=0, duration=self.DephTime, system=self.system)
+                    gz_pre = pp.make_trapezoid(channel="z", area= -gz.area / 2, duration=self.DephTime, system=self.system)
+
+                    batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)
+                    batches[batch_num].add_block(pp.make_delay(delay_te))
+        
+                    # Make receiver phase follow transmitter phase
+                    adc = pp.make_adc(
+                        num_samples=Nx,
+                        duration=gx.flat_time,
+                        delay=gx.rise_time,
+                        phase_offset=rand_phase, # set phase offset
+                    )
+                    adc.freq_offset=rf.freq_offset
+                    if Cy >= 0:  # Negative index -- dummy scans
+                        batches[batch_num].add_block(gx, adc)
+                    else:
+                        batches[batch_num].add_block(gx)
                     
-                        # RF offset here 
-                        rand_phase = (self.RFSpoilPhase * (Cy ** 2 + Cy + 2) % 360) * np.pi / 180
-
-                        rf.freq_offset=gz.amplitude*slice_positions[Cz]
-                        rf.phase_offset=rand_phase-2*np.pi*rf.freq_offset*pp.calc_rf_center(rf)[0] # compensate for the slice-offset induced phase
-                        
-                        # RF excitation and slice/slab selection gradient
-                        batches[batch_num].add_block(rf, gz)
-
-                        if Cy >= 0:
-                            gy_pre = pp.make_trapezoid(channel="y", area=phase_areas[Cy], duration=self.DephTime, system=self.system)
-                        else:
-                            gy_pre = pp.make_trapezoid(channel="y", area=0, duration=self.DephTime, system=self.system)
-                        gz_pre = pp.make_trapezoid(channel="z", area= -gz.area / 2, duration=self.DephTime, system=self.system)
-
-                        batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)
-                        batches[batch_num].add_block(pp.make_delay(delay_te))
-            
-                        # Make receiver phase follow transmitter phase
-                        adc = pp.make_adc(
-                            num_samples=Nx,
-                            duration=gx.flat_time,
-                            delay=gx.rise_time,
-                            phase_offset=rand_phase, # set phase offset
-                        )
-                        adc.freq_offset=rf.freq_offset
-                        if Cy >= 0:  # Negative index -- dummy scans
-                            batches[batch_num].add_block(gx, adc)
-                        else:
-                            batches[batch_num].add_block(gx)
-                        
-                        if self.phaseGradSpoilMode == 0:
-                            gy_post = pp.make_trapezoid(channel="y", area=-gy_pre.area, duration=pe_duration, system=self.system)
-                        else:
-                            gy_post = pp.make_trapezoid(channel="y", area=spoil_area, system=self.system) 
-                        batches[batch_num].add_block(gx_post, gy_post, gz_post)
-                        batches[batch_num].add_block(pp.make_delay(delay_tr))
+                    if self.phaseGradSpoilMode == 0:
+                        gy_post = pp.make_trapezoid(channel="y", area=-gy_pre.area, duration=pe_duration, system=self.system)
+                    else:
+                        gy_post = pp.make_trapezoid(channel="y", area=spoil_area, system=self.system) 
+                    batches[batch_num].add_block(gx_post, gy_post, gz_post)
+                    batches[batch_num].add_block(pp.make_delay(delay_tr))
 
             # Check whether the timing of the sequence is correct
             ok, error_report = batches[batch_num].check_timing()
@@ -737,7 +740,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = FLASHPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
