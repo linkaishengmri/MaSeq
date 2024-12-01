@@ -852,7 +852,7 @@ class DWEPIPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = DWEPIPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

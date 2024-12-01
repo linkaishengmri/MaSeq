@@ -78,15 +78,15 @@ class IRTSEPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='rfSincInvTime', string='RF sinc inversion time (ms)', val=3.0, units=units.ms, field='RF')
         
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=2000.0, units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=5000.0, units=units.ms, field='SEQ')
         self.addParameter(key='inversionTime', string='Inversion time (ms)', val=1000.0, units=units.ms, field='SEQ')
         
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[200, 200], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
-        self.addParameter(key='sliceGap', string='Slice gap (mm)', val=6, units=units.mm, field='IM')
+        self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 2], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
@@ -946,7 +946,7 @@ class IRTSEPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = IRTSEPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

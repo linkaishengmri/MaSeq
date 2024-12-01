@@ -63,7 +63,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='flash', val='flash')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35676, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35645, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=30, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=46.0, units=units.ms, field='SEQ')
@@ -74,7 +74,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 3], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 2], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=5, field='SEQ')
@@ -84,7 +84,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
         self.addParameter(key='gradSpoil', string='Gradient Spoiling', val=4, field='OTH',
                           tip='4 times of frequency encoding gradient is recommended')
-        self.addParameter(key='RFSpoilPhase', string='RF Spoiling Phase', val=117, field='OTH',
+        self.addParameter(key='RFSpoilPhase', string='RF Spoiling Phase', val=0, field='OTH',
                           tip='117 deg is recommended')
         self.addParameter(key='phaseGradSpoilMode', string='Phase Encoding Spoiling', val=1, field='OTH',
                           tip='0: Without phase spoiling, 1: with phase spoiling.')
@@ -95,7 +95,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
-                self.mapVals['nScans'] * self.mapVals['nPoints'][2]
+                self.mapVals['nScans'] * self.mapVals['nPoints'][2] *
                 (self.mapVals['nPoints'][1] + self.mapVals['dummyPulses']) / 60)
 
     def sequenceAtributes(self):
@@ -575,9 +575,10 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['kSpace'] = data_ind
 
         # Get images
+        
         image_ind = np.zeros_like(data_ind)
-        for echo in range(self.etl):
-            image_ind[echo] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[echo])))
+        for s in range(nSL):
+            image_ind[0,s,:,:] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[0,s,:,:])))
         self.mapVals['iSpace'] = image_ind
         
         # Prepare data to plot (plot central slice)
@@ -737,7 +738,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = FLASHPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
