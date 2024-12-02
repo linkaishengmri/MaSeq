@@ -132,7 +132,7 @@ class IRTSEPSEQ(blankSeq.MRIBLANKSEQ):
         self.standalone = standalone
         
         # Calculate slice positions
-        slice_positions = (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
+        slice_positions = self.dfov[2] + (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
 
         # slice idx
         slice_idx = np.concatenate((np.arange(self.nPoints[2])[::2],np.arange(self.nPoints[2])[1::2]))

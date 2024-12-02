@@ -70,15 +70,15 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
-        self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=2000.0, units=units.ms, field='SEQ')
+        self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=2.0, units=units.ms, field='RF')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=5000.0, units=units.ms, field='SEQ')
         
-        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[200, 200], units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=6, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 2], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
@@ -86,14 +86,14 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
-        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=160.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=3*11.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=11.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='fsp_r', string='Readout Spoiling', val=2, field='OTH',
+        self.addParameter(key='fsp_r', string='Readout Spoiling', val=.2, field='OTH',
                           tip="Gradient spoiling for readout.")
-        self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
+        self.addParameter(key='fsp_s', string='Slice Spoiling', val=.6, field='OTH',
                           tip="Gradient spoiling for slice.")
         
 
@@ -124,7 +124,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.standalone = standalone
         
         # Calculate slice positions
-        slice_positions = (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
+        slice_positions = self.dfov[2] + (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
 
         # slice idx
         slice_idx = np.concatenate((np.arange(self.nPoints[2])[::2],np.arange(self.nPoints[2])[1::2]))
@@ -164,7 +164,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         '''
         self.system = pp.Opts(
             rf_dead_time=100 * 1e-6,  # Dead time between RF pulses (s)
-            max_grad=30,  # Maximum gradient strength (mT/m)
+            max_grad=38,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
             slew_unit='mT/m/ms',  # Units of gradient slew rate

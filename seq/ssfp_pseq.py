@@ -70,10 +70,10 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256,2], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256,1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
-        self.addParameter(key='dummyPulses', string='Dummy pulses', val=20, field='SEQ')
+        self.addParameter(key='dummyPulses', string='Dummy pulses', val=100, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
@@ -98,7 +98,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         self.standalone = standalone
         
         # Calculate slice positions
-        slice_positions = (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
+        slice_positions = self.dfov[2] + (self.thickness + self.sliceGap) * (np.arange(self.nPoints[2]) - (self.nPoints[2] - 1) // 2)
 
         # slice idx
         slice_idx = np.concatenate((np.arange(self.nPoints[2])[::2],np.arange(self.nPoints[2])[1::2]))
@@ -407,36 +407,36 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
                         assert n_rd_points + self.nPoints[0] <= hw.maxRdPoints
                         n_rd_points = n_rd_points + self.nPoints[0]
                     
-                        # RF excitation and slice/slab selection gradient
-                        batches[batch_num].add_block(rf, gz)
+                    # RF excitation and slice/slab selection gradient
+                    batches[batch_num].add_block(rf, gz)
 
-                        # Wait for TE
-                        batches[batch_num].add_block(pp.make_delay(delay_TE))
+                    # Wait for TE
+                    batches[batch_num].add_block(pp.make_delay(delay_TE))
 
-                        # Phase encoding gradients, combined with slice selection rephaser
-                        # pe_index_y, pe_index_z = phase_encode_table[max(Cy, 0)]
-                        pe_index_y = phase_encode_table[max(Cy, 0)]
-                        
-                        gx_pre = pp.make_trapezoid(channel="x", area=-0.5 * gx.area, duration=self.DephTime, system=self.system)
-                        gy_pre = pp.make_trapezoid(channel="y", area=phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system)
-                        gz_pre = pp.make_trapezoid(channel="z", area= -gz.area / 2, duration=self.DephTime, system=self.system)
-                        batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)
+                    # Phase encoding gradients, combined with slice selection rephaser
+                    # pe_index_y, pe_index_z = phase_encode_table[max(Cy, 0)]
+                    pe_index_y = phase_encode_table[max(Cy, 0)]
+                    
+                    gx_pre = pp.make_trapezoid(channel="x", area=-0.5 * gx.area, duration=self.DephTime, system=self.system)
+                    gy_pre = pp.make_trapezoid(channel="y", area=phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system)
+                    gz_pre = pp.make_trapezoid(channel="z", area= -gz.area / 2, duration=self.DephTime, system=self.system)
+                    batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)
 
-                        # Readout, do not enable ADC/labels for dummy acquisitions
-                        if Cy < 0:
-                            batches[batch_num].add_block(gx)
-                        else:
-                            # Readout with LIN (Y) and SLC (Z) labels (increment relative to previous label value)
-                            batches[batch_num].add_block(gx, adc) #, pp.make_label('LIN', 'INC', pe_index_y - last_lin), pp.make_label('SLC', 'INC', pe_index_z - last_slc))
+                    # Readout, do not enable ADC/labels for dummy acquisitions
+                    if Cy < 0:
+                        batches[batch_num].add_block(gx)
+                    else:
+                        # Readout with LIN (Y) and SLC (Z) labels (increment relative to previous label value)
+                        batches[batch_num].add_block(gx, adc) #, pp.make_label('LIN', 'INC', pe_index_y - last_lin), pp.make_label('SLC', 'INC', pe_index_z - last_slc))
 
-                        # Balance phase encoding and slice selection gradients
-                        gy_post = pp.make_trapezoid(channel="y", area=-phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system) #jl
-                        gz_post = pp.make_trapezoid(channel="z", area=-gz.area / 2, duration=self.DephTime, system=self.system) #jl
-                        gx_post = pp.make_trapezoid(channel="x", area=0.5 * gx.area, duration=self.DephTime, system=self.system)
-                        batches[batch_num].add_block(gx_post, gy_post, gz_post)
+                    # Balance phase encoding and slice selection gradients
+                    gy_post = pp.make_trapezoid(channel="y", area=-phase_areas_y[pe_index_y], duration=self.DephTime, system=self.system) #jl
+                    gz_post = pp.make_trapezoid(channel="z", area=-gz.area / 2, duration=self.DephTime, system=self.system) #jl
+                    gx_post = pp.make_trapezoid(channel="x", area=0.5 * gx.area, duration=self.DephTime, system=self.system)
+                    batches[batch_num].add_block(gx_post, gy_post, gz_post)
 
-                        # wait for TR
-                        batches[batch_num].add_block(pp.make_delay(delay_TR_each_time))
+                    # wait for TR
+                    batches[batch_num].add_block(pp.make_delay(delay_TR_each_time))
 
                 
             # Check whether the timing of the sequence is correct
@@ -718,7 +718,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPMSPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
