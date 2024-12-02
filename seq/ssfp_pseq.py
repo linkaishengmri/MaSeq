@@ -460,7 +460,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 
             # Update the number of acquired ponits in the last batch
             self.n_rd_points_dict[batch_num] = n_rd_points
-
+            self.lastseq = batches[batch_num]
             return 
 
         '''
@@ -532,18 +532,28 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
         data = np.average(data_full, axis=0)
         self.mapVals['data'] = data
         
-        slice_idx = self.mapVals['sliceIdx']
-        data_arrange_slice = np.zeros(shape=(nSL, nPH, nRD), dtype=complex)
-        data_shape = np.reshape(data, newshape=(nPH, nSL, nRD))
-        for s_i in range(nSL):
-            data_arrange_slice[slice_idx[s_i], :, :] = data_shape[:, s_i, :]
+        # Original methods to reconstruct:
+        # slice_idx = self.mapVals['sliceIdx']
+        # data_arrange_slice = np.zeros(shape=(nSL, nPH, nRD), dtype=complex)
+        # data_shape = np.reshape(data, newshape=(nPH, nSL, nRD))
+        # for s_i in range(nSL):
+        #     data_arrange_slice[slice_idx[s_i], :, :] = data_shape[:, s_i, :]
 
-        # Generate different k-space data
-        data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
-
-        # Remove added data in readout direction
-        data_ind = data_ind[:, :, :, hw.addRdPoints: nRD - hw.addRdPoints]
+        # sort method to reconstruct:
+        n_ex = int(np.floor(self.nPoints[1]))
+        data_shape = np.reshape(data, newshape=(n_ex, nSL, 1, nRD))
+        kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
+        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq, shape=(nSL, nPH, nRD))
+        data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
         self.mapVals['kSpace'] = data_ind
+
+        
+        # # Generate different k-space data
+        # data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
+
+        # # Remove added data in readout direction
+        # data_ind = data_ind[:, :, :, hw.addRdPoints: nRD - hw.addRdPoints]
+        # self.mapVals['kSpace'] = data_ind
         
         # Get images
         image_ind = np.zeros_like(data_ind)
@@ -708,7 +718,7 @@ class SSFPMSPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SSFPMSPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

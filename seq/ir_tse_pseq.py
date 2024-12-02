@@ -86,7 +86,7 @@ class IRTSEPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 2], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 16, 2], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
@@ -524,8 +524,8 @@ class IRTSEPSEQ(blankSeq.MRIBLANKSEQ):
                             # Update acquired points
                             self.rxChName = 'rx0'
                             rx_raw_data = rxd[self.rxChName]
-                            rxdata = self.flo_interpreter.rx_points_added_for_img(rx_raw_data, self.nPoints[0])
-                            rxdata = np.reshape(rxdata, newshape=(-1))
+                            # rxdata = self.flo_interpreter.rx_points_added_for_img(rx_raw_data, self.nPoints[0])
+                            rxdata = np.reshape(rx_raw_data, newshape=(-1))
                             acquired_points = np.size(rxdata)
 
                             # Check if acquired points coincide with expected points
@@ -946,7 +946,7 @@ class IRTSEPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = IRTSEPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
