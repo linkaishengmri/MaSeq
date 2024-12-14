@@ -365,29 +365,6 @@ class MRIBLANKSEQ:
         return True
 
     def pypulseq2mriblankseq_ms(self, waveforms=None, shimming=np.array([0.0, 0.0, 0.0])):
-        """
-        Translates PyPulseq waveforms into mriBlankSeq dictionary format for use in the GUI.
-
-        Args:
-            waveforms (dict, optional):
-                A dictionary containing waveform data for different channels. The keys represent channel names
-                ('tx0', 'tx1', 'rx0_en', 'rx1_en', 'tx_gate', 'rx_gate', 'grad_vx', 'grad_vy', 'grad_vz',
-                'lo0_freq_offset','lo1_freq_offset','lo0_rst','lo1_rst') and
-                the values are lists of numpy arrays representing the waveform data for each channel.
-            shimming (numpy.ndarray, optional):
-                A 1D numpy array of length 3 containing shimming values for the gradient channels
-                (default is [0.0, 0.0, 0.0]).
-
-        Returns:
-            bool: Returns True when the conversion and sequence update are completed successfully.
-
-        Notes:
-            The function translates the waveform data to the mriBlankSeq dictionary format which is compatible with
-            the GUI functionalities. If certain waveform keys are not provided in the input, the function initializes
-            them with default values. Additionally, shimming values are added to the gradient channels.
-
-        """
-
         # Reset flo dictionary
         self.flo_dict = {'g0': [[], []],
                          'g1': [[], []],
@@ -465,7 +442,86 @@ class MRIBLANKSEQ:
         self.endSequence(last_time+10)
 
         return True
+    
+    def pypulseq2mriblankseqV2(self, waveforms=None, shimming=np.array([0.0, 0.0, 0.0])):
+        # Reset flo dictionary
+        self.flo_dict = {'g0': [[], []],
+                         'g1': [[], []],
+                         'g2': [[], []],
+                         'rx0': [[], []],
+                         'rx1': [[], []],
+                         'tx0': [[], []],
+                         'tx1': [[], []],
+                         'ttl0': [[], []],
+                         'ttl1': [[], []],
+                         'lo0_freq_offset': [[], []],
+                         'lo1_freq_offset': [[], []],
+                         'lo0_rst': [[], []],
+                         'lo1_rst': [[], []], }
 
+        # Fill dictionary
+        for key in waveforms.keys():
+            if key == 'tx0':
+                self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], waveforms['tx0'][0][:]), axis=0)
+                self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], waveforms['tx0'][1][:]), axis=0)
+            elif key == 'tx1':
+                self.flo_dict['tx1'][0] = np.concatenate((self.flo_dict['tx1'][0], waveforms['tx1'][0][:]), axis=0)
+                self.flo_dict['tx1'][1] = np.concatenate((self.flo_dict['tx1'][1], waveforms['tx1'][1][:]), axis=0)
+            elif key == 'rx0_en':
+                self.flo_dict['rx0'][0] = np.concatenate((self.flo_dict['rx0'][0], waveforms['rx0_en'][0][:]), axis=0)
+                self.flo_dict['rx0'][1] = np.concatenate((self.flo_dict['rx0'][1], waveforms['rx0_en'][1][:]), axis=0)
+            elif key == 'rx1_en':
+                self.flo_dict['rx1'][0] = np.concatenate((self.flo_dict['rx1'][0], waveforms['rx1_en'][0][:]), axis=0)
+                self.flo_dict['rx1'][1] = np.concatenate((self.flo_dict['rx1'][1], waveforms['rx1_en'][1][:]), axis=0)
+            elif key == 'tx_gate':
+                self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], waveforms['tx_gate'][0][:]), axis=0)
+                self.flo_dict['ttl0'][1] = np.concatenate((self.flo_dict['ttl0'][1], waveforms['tx_gate'][1][:]), axis=0)
+            elif key == 'rx_gate':
+                self.flo_dict['ttl1'][0] = np.concatenate((self.flo_dict['ttl1'][0], waveforms['rx_gate'][0][:]), axis=0)
+                self.flo_dict['ttl1'][1] = np.concatenate((self.flo_dict['ttl1'][1], waveforms['rx_gate'][1][:]), axis=0)
+            elif key == 'grad_vx':
+                self.flo_dict['g0'][0] = np.concatenate((self.flo_dict['g0'][0], waveforms['grad_vx'][0][:]), axis=0)
+                self.flo_dict['g0'][1] = np.concatenate((self.flo_dict['g0'][1], waveforms['grad_vx'][1][:]), axis=0)
+            elif key == 'grad_vy':
+                self.flo_dict['g1'][0] = np.concatenate((self.flo_dict['g1'][0], waveforms['grad_vy'][0][:]), axis=0)
+                self.flo_dict['g1'][1] = np.concatenate((self.flo_dict['g1'][1], waveforms['grad_vy'][1][:]), axis=0)
+            elif key == 'grad_vz':
+                self.flo_dict['g2'][0] = np.concatenate((self.flo_dict['g2'][0], waveforms['grad_vz'][0][:]), axis=0)
+                self.flo_dict['g2'][1] = np.concatenate((self.flo_dict['g2'][1], waveforms['grad_vz'][1][:]), axis=0)
+            elif key == 'lo0_freq_offset':
+                self.flo_dict['lo0_freq_offset'][0] = np.concatenate((self.flo_dict['lo0_freq_offset'][0], waveforms['lo0_freq_offset'][0][:]), axis=0)
+                self.flo_dict['lo0_freq_offset'][1] = np.concatenate((self.flo_dict['lo0_freq_offset'][1], waveforms['lo0_freq_offset'][1][:]), axis=0)
+            elif key == 'lo1_freq_offset':
+                self.flo_dict['lo1_freq_offset'][0] = np.concatenate((self.flo_dict['lo1_freq_offset'][0], waveforms['lo1_freq_offset'][0][:]), axis=0)
+                self.flo_dict['lo1_freq_offset'][1] = np.concatenate((self.flo_dict['lo1_freq_offset'][1], waveforms['lo1_freq_offset'][1][:]), axis=0)
+            elif key == 'lo0_rst':
+                self.flo_dict['lo0_rst'][0] = np.concatenate((self.flo_dict['lo0_rst'][0], waveforms['lo0_rst'][0][:]), axis=0)
+                self.flo_dict['lo0_rst'][1] = np.concatenate((self.flo_dict['lo0_rst'][1], waveforms['lo0_rst'][1][:]), axis=0)
+            elif key == 'lo1_rst':
+                self.flo_dict['lo1_rst'][0] = np.concatenate((self.flo_dict['lo1_rst'][0], waveforms['lo1_rst'][0][:]), axis=0)
+                self.flo_dict['lo1_rst'][1] = np.concatenate((self.flo_dict['lo1_rst'][1], waveforms['lo1_rst'][1][:]), axis=0)
+                   
+
+        # Fill missing keys
+        for key in self.flo_dict.keys():
+            try:
+                is_unfilled = all(not sublist for sublist in self.flo_dict[key])
+            except:
+                is_unfilled = False
+            if is_unfilled:
+                self.flo_dict[key] = [np.array([0]), np.array([0])]
+
+        # Add shimming
+        self.flo_dict['g0'][1] = self.flo_dict['g0'][1] + shimming[0]
+        self.flo_dict['g1'][1] = self.flo_dict['g1'][1] + shimming[1]
+        self.flo_dict['g2'][1] = self.flo_dict['g2'][1] + shimming[2]
+
+        last_times = np.array([value[0][-1] for value in self.flo_dict.values()])
+        last_time = np.max(last_times)
+        self.endSequence(last_time+10)
+
+        return True
+    
     def getFovDisplacement(self):
         """
         Get the displacement to apply in the FFT reconstruction.
