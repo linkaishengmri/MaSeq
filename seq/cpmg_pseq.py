@@ -60,19 +60,19 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35368  , units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35342  , units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         
         # self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.3, field='RF')
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=100.0, units=units.us, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=5, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.3, units=units.ms, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=800, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=30, field='SEQ')
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=320, units=units.kHz, field='IM',
+        self.addParameter(key='nPoints', string='Number of acquired points', val=32, field='IM')
+        self.addParameter(key='etl', string='Echo train length', val=200, field='SEQ')
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
         self.addParameter(key='Exphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Excitation Phase Cycling', field='RF')
@@ -100,7 +100,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
         max_rf_Hz = hw.max_cpmg_rf * 1e-6 * hw.gammaB
         self.flo_interpreter = PseqInterpreter(
-            tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
+            tx_warmup=10,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
             rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
             grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
@@ -200,7 +200,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
 
             # Excitation pulse
-            seq.add_block(pp.make_delay(0.003-0.00015))
+            seq.add_block(pp.make_delay(0.003-0.0009))
             seq.add_block(rf_ex)
             seq.add_block(pp.make_delay(delay_te1))
             # Echo train

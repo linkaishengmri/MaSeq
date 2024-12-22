@@ -53,7 +53,7 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='search_p90', val='fid')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35374, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35344, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         
         self.addParameter(key='rfExAmpSearchRange', string='RF Amp Searching Range (uT)', val=[110,1,135], field='RF',
@@ -91,7 +91,7 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['rxChName'] = 'rx0'
 
         self.system = pp.Opts(
-            rf_dead_time=1000 * 1e-6,  # Dead time between RF pulses (s)
+            rf_dead_time=hw.blkTime * 1e-6,  # Dead time between RF pulses (s)
             max_grad=30,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
@@ -170,7 +170,7 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
         for p90 in RFp90:
             max_rf_Hz = p90 * 1e-6 * hw.gammaB
             self.flo_interpreter = PseqInterpreter(
-                tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
+                tx_warmup=10,  # Transmit chain warm-up time (us)
                 rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
                 rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
                 grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
