@@ -22,15 +22,15 @@ import numpy as np
 import seq.mriBlankSeq as blankSeq   
 import configs.units as units
 import scipy.signal as sig
-import experiment_multifreq as ex
+import experiment as ex
 import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
-class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
+class T1T2PSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(CPMGPSEQ, self).__init__()
+        super(T1T2PSEQ, self).__init__()
         # Input the parameters
         self.output = None
         self.expt = None
@@ -40,10 +40,13 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.larmorFreq = None 
         self.rfExFA = None
         self.rfReFA = None
+        self.rfInvFA = None
         # self.rfExAmp = None  
         # self.rfReAmp = None  
         self.rfExTime = None 
         self.rfReTime = None 
+        self.rfInvTime = None
+        self.inversionTime = None
         self.echoSpacing = None  
         self.repetitionTime = None  
         self.nPoints = None 
@@ -51,33 +54,32 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.bandwidth = None
         self.acqTime = None  
         self.shimming = None 
-        self.Exphase = None 
-        self.Refphase = None
-        self.Rxphase = None
+        self.phase_mode = None 
+        self.RFphase = None 
         self.txChannel = None
         self.rxChannel = None
-
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=8, field='SEQ')
+        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=3.08, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
-        
+        self.addParameter(key='rfInvFA', string='Refocusing flip angle (deg)', val=90, field='RF')
         # self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.3, field='RF')
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=300.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=300.0, units=units.us, field='RF')
+        self.addParameter(key='rfInvTime', string='RF inversion time (us)', val=300.0, units=units.us, field='RF')
+        self.addParameter(key='inversionTime', string='Inversion time (ms)', val=10.0, units=units.ms, field='SEQ')
+        
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=5.0, units=units.ms, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=50, field='IM')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
         self.addParameter(key='etl', string='Echo train length', val=50, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
-        self.addParameter(key='Exphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Excitation Phase Cycling', field='RF')
-        self.addParameter(key='Refphase', string='RF Phase (deg)', val=[90, 90, 180, 180], tip='Refocusing Phase Cycling', field='RF')
-        self.addParameter(key='Rxphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Rx Phase Cycling', field='RF')
-        
+        self.addParameter(key='phase_mode', string='Phase mode', val='SPEC', tip='CP, CPMG, APCP, APCPMG, SPEC', field='SEQ')
+        self.addParameter(key='RFphase', string='RF Phase (deg)', val=[0, 0, 90], tip='Phase of RF inversion, excitation and refocusing', field='SEQ')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 
@@ -108,7 +110,6 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
             add_rx_points = 10,
-            use_multi_freq=True,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
         assert (self.rxChannel == 0 or self.rxChannel == 1)
@@ -152,27 +153,39 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         if not self.demo:
             print(f'dwell time: {sampling_period} us, readout time: {readout_duration} s')
         
-        RealExphase = np.tile(self.Exphase, int(np.ceil(self.nScans / len(self.Exphase))))
-        RealRefphase = np.tile(self.Refphase, int(np.ceil(self.nScans / len(self.Refphase))))
-        RealRxphase = np.tile(self.Rxphase, int(np.ceil(self.nScans / len(self.Rxphase))))
-        
-
         rf_ex = pp.make_block_pulse(
             flip_angle=self.rfExFA * np.pi / 180,
             duration=self.rfExTime,
             system=self.system,
-            phase_offset=RealExphase[0] * np.pi / 180,
+            phase_offset=self.RFphase[1] * np.pi / 180,
             delay=0,
         )
         rf_ref = pp.make_block_pulse(
             flip_angle=self.rfReFA * np.pi / 180,
             duration=self.rfReTime,
             system=self.system,
-            phase_offset=RealRefphase[0] * np.pi / 180,
+            phase_offset=0.0,
             delay=0,
         )
-        
+        rf_inv = pp.make_block_pulse(
+            flip_angle=self.rfInvFA * np.pi / 180,
+            duration=self.rfInvTime,
+            system=self.system,
+            phase_offset=self.RFphase[0] * np.pi / 180,
+            delay=0,
+        )
+
+        # Check that self.phase_mode is once of the good values
+        phase_modes = ['CP', 'CPMG', 'APCP', 'APCPMG', 'SPEC']
+        if not self.phase_mode in phase_modes:
+            print('ERROR: unexpected phase mode.')
+            print('ERROR: Please select one of possible modes:')
+            print('ERROR: CP\nCPMG\nAPCP\nAPCPMG\nSPEC')
+            return False
+
         adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration) 
+        delay_ti =  np.round((self.inversionTime - 0.5*(self.rfExTime + self.rfInvTime) - self.system.rf_dead_time)
+                              / self.system.block_duration_raster) * self.system.block_duration_raster   
         delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - self.system.rf_dead_time)
                               / self.system.block_duration_raster) * self.system.block_duration_raster   
         delay_te2 = np.round(0.5 * (self.echoSpacing - self.rfReTime - readout_duration)
@@ -183,28 +196,43 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                              
         recovery_time = self.repetitionTime - 0.5*(self.rfExTime+self.echoSpacing) - self.etl * self.echoSpacing
         # Assertions to check if times are greater than zero
+        assert delay_ti > 0, f"Error: delay_ti is non-positive: {delay_ti}"
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
         
         acq_points = 0
         seq = pp.Sequence(system=self.system)
-        for scan in range(self.nScans):
-            # Phase Cycling
-            rf_ex.phase_offset = RealExphase[scan] * np.pi / 180
-            adc.phase_offset = RealRxphase[scan] * np.pi / 180
-            rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
-
+        #for scan in range(self.nScans):
+        if True:
             # Excitation pulse
             seq.add_block(pp.make_delay(0.003))
+
+            seq.add_block(rf_inv)
+            seq.add_block(pp.make_delay(delay_ti))
             seq.add_block(rf_ex)
             seq.add_block(pp.make_delay(delay_te1))
             # Echo train
             for echoIndex in range(self.etl):
+                
+                phase = 0
+                if self.phase_mode == 'CP':
+                    phase = 0.0
+                elif self.phase_mode == 'CPMG':
+                    phase = np.pi/2
+                elif self.phase_mode == 'APCP':
+                    phase = ((-1)**(echoIndex)+1)*np.pi/2
+                elif self.phase_mode == 'APCPMG':
+                    phase = (-1)**echoIndex*np.pi/2
+                elif self.phase_mode == 'SPEC':
+                    phase = self.RFphase[2] * np.pi / 180
+                rf_ref.phase_offset = phase
+                # adc.phase_offset = phase
                 seq.add_block(rf_ref)
                 seq.add_block(pp.make_delay(delay_te2))
                 seq.add_block(adc)
                 seq.add_block(pp.make_delay(delay_te3))
+                
                 acq_points += self.nPoints
 
             seq.add_block(pp.make_delay(recovery_time))
@@ -238,7 +266,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.pypulseq2mriblankseqV2(waveforms=self.waveforms, shimming=self.shimming)
         
         # Load the waveforms into Red Pitaya
-        if not self.floDict2Exp_ms():
+        if not self.floDict2Exp():
             print("ERROR: Sequence waveforms out of hardware bounds")
             return False
         else:
@@ -252,11 +280,10 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         data_over = []
         # If not plotting the sequence, start scanning
         if not self.plotSeq:
-            # for scan in range(self.nScans):
-            if True:
-                print(f"Scan running...")
+            for scan in range(self.nScans):
+                print(f"Scan {scan + 1}, running...")
                 acquired_points = 0
-                expected_points = self.nPoints * self.etl * self.nScans  # Expected number of points
+                expected_points = self.nPoints * self.etl  # Expected number of points
 
                 # Continue acquiring points until we reach the expected number
                 while acquired_points != expected_points:
@@ -278,15 +305,15 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                 # Concatenate acquired data into the oversampled data array
                 data_over = np.concatenate((data_over, rxdata), axis=0)
                 print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
-                print(f"Scan ready!")
+                print(f"Scan {scan + 1}, ready!")
                 # plt.plot(data_over)
                 # plt.show()
             # Decimate the oversampled data and store it
             self.mapVals['data_over'] = data_over
 
             # Average data
-            # data = np.average(np.reshape(data_over, (self.nScans, -1)), axis=0)
-            self.mapVals['data'] = data_over
+            data = np.average(np.reshape(data_over, (self.nScans, -1)), axis=0)
+            self.mapVals['data'] = data
 
         
 
@@ -316,24 +343,20 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
 
         # [TODO]: Add Rx phase here
-        if True:
+        if False:
             rawdata = self.mapVals['data']
             chName = self.mapVals['rxChName']
             expiangle = self.flo_interpreter.get_rx_phase_dict()[chName]
-            raw_data_reshape = np.reshape(rawdata, newshape=(-1, self.mapVals['nPoints']))
+            raw_data_reshape = np.reshape(rawdata, newshape=(self.mapVals['etl'], self.mapVals['nPoints']))
             
             for line in range(raw_data_reshape.shape[0]):
                 raw_data_reshape[line, :] = raw_data_reshape[line, :] * expiangle[line]
             signal = np.reshape(raw_data_reshape, -1)
         else: 
             signal = self.mapVals['data']
-
-        # Average data
-        singal = np.average(np.reshape(signal, (self.nScans, -1)), axis=0)
-            
-
+ 
         bw = self.mapVals['bw_MHz']*1e3 # kHz
-        nPoints = self.mapVals['nScans'] * self.mapVals['nPoints'] * self.mapVals['etl']
+        nPoints = self.mapVals['nPoints'] * self.mapVals['etl']
         deadTime = 0 #self.mapVals['deadTime']*1e-3 # ms
         rfRectExTime = self.mapVals['rfExTime']*1e-3 # ms
         tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
@@ -390,7 +413,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
  
     
 if __name__ == '__main__':
-    seq = CPMGPSEQ()
+    seq = T1T2PSEQ()
     seq.sequenceAtributes()
     seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
