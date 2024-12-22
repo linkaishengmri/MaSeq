@@ -54,30 +54,31 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.Exphase = None 
         self.Refphase = None
         self.Rxphase = None
+        self.RxTimeOffset = None
         self.txChannel = None
         self.rxChannel = None
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=8, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=3.08, units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35368  , units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         
         # self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.3, field='RF')
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=300.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=300.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=5.0, units=units.ms, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=100.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=5, units=units.ms, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=50, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=50, field='SEQ')
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
+        self.addParameter(key='nPoints', string='Number of acquired points', val=800, field='IM')
+        self.addParameter(key='etl', string='Echo train length', val=30, field='SEQ')
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=320, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
         self.addParameter(key='Exphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Excitation Phase Cycling', field='RF')
         self.addParameter(key='Refphase', string='RF Phase (deg)', val=[90, 90, 180, 180], tip='Refocusing Phase Cycling', field='RF')
         self.addParameter(key='Rxphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Rx Phase Cycling', field='RF')
-        
+        self.addParameter(key='RxTimeOffset', string='Rx Time Offset (ms)', val=0, units=units.ms, field='SEQ')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 
@@ -97,7 +98,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.standalone = standalone
 
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
-        max_rf_Hz = hw.max_rf * 1e-6 * hw.gammaB
+        max_rf_Hz = hw.max_cpmg_rf * 1e-6 * hw.gammaB
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
@@ -107,7 +108,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
-            add_rx_points = 10,
+            add_rx_points = 8,
             use_multi_freq=True,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
@@ -116,7 +117,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['rxChName'] = 'rx0'
 
         self.system = pp.Opts(
-            rf_dead_time=hw.blkTime * 1e-6,  # Dead time between RF pulses (s)
+            rf_dead_time=10 * 1e-6,  # Dead time between RF pulses (s)
             max_grad=30,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
@@ -179,13 +180,16 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                               / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te3 = np.round((delay_te2 - self.system.rf_dead_time) 
                               / self.system.block_duration_raster) * self.system.block_duration_raster
+        delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
+        delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         
-                             
         recovery_time = self.repetitionTime - 0.5*(self.rfExTime+self.echoSpacing) - self.etl * self.echoSpacing
         # Assertions to check if times are greater than zero
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
+        assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te1}"
+        assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te2}"
         
         acq_points = 0
         seq = pp.Sequence(system=self.system)
@@ -196,15 +200,15 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
 
             # Excitation pulse
-            seq.add_block(pp.make_delay(0.003))
+            seq.add_block(pp.make_delay(0.003-0.00015))
             seq.add_block(rf_ex)
             seq.add_block(pp.make_delay(delay_te1))
             # Echo train
             for echoIndex in range(self.etl):
                 seq.add_block(rf_ref)
-                seq.add_block(pp.make_delay(delay_te2))
+                seq.add_block(pp.make_delay(delay_te2_with_offset))
                 seq.add_block(adc)
-                seq.add_block(pp.make_delay(delay_te3))
+                seq.add_block(pp.make_delay(delay_te3_with_offset))
                 acq_points += self.nPoints
 
             seq.add_block(pp.make_delay(recovery_time))
@@ -264,11 +268,15 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                         rxd, msgs = self.expt.run()  # Run the experiment and collect data
                     else:
                         # In demo mode, generate random data as a placeholder
-                        rxd = {self.rxChName: np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
+                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
-                    rxdata = rx_raw_data
+                    add_rx_points = self.flo_interpreter.get_add_rx_points()
+                    before_delete = np.reshape(rx_raw_data, newshape=(self.etl * self.nScans, -1))
+                    rxdataremove = before_delete[:, add_rx_points:]
+                    rxdata = np.reshape(rxdataremove, newshape=(-1))
                     acquired_points = np.size(rxdata)
+
 
                     # Check if acquired points coincide with expected points
                     if acquired_points != expected_points:
@@ -387,12 +395,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         if self.mode == 'Standalone':
             self.plotResults()
         return self.output
- 
     
 if __name__ == '__main__':
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

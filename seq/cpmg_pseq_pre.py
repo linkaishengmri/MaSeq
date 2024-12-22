@@ -55,8 +55,8 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.txChannel = None
         self.rxChannel = None
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=3.08, units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35376, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         
@@ -66,12 +66,12 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=300.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=5.0, units=units.ms, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=50, field='IM')
         self.addParameter(key='etl', string='Echo train length', val=50, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
-        self.addParameter(key='phase_mode', string='Phase mode', val='APCP', tip='CP, CPMG, APCP, APCPMG', field='SEQ')
+        self.addParameter(key='phase_mode', string='Phase mode', val='CP', tip='CP, CPMG, APCP, APCPMG', field='SEQ')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 
@@ -101,7 +101,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
-            add_rx_points = 10,
+            add_rx_points = 0,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
         assert (self.rxChannel == 0 or self.rxChannel == 1)
@@ -392,7 +392,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

@@ -53,10 +53,10 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='search_p90', val='fid')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=3.08, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35374, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         
-        self.addParameter(key='rfExAmpSearchRange', string='RF Amp Searching Range (uT)', val=[40, 5, 65], field='RF',
+        self.addParameter(key='rfExAmpSearchRange', string='RF Amp Searching Range (uT)', val=[110,1,135], field='RF',
                           tip="[begin, step, end]")
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=300.0, units=units.us, field='RF')
         self.addParameter(key='deadTime', string='Dead Time (us)', val=100.0, units=units.us, field='SEQ')
@@ -91,7 +91,7 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['rxChName'] = 'rx0'
 
         self.system = pp.Opts(
-            rf_dead_time=hw.blkTime * 1e-6,  # Dead time between RF pulses (s)
+            rf_dead_time=1000 * 1e-6,  # Dead time between RF pulses (s)
             max_grad=30,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
@@ -244,7 +244,7 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
                 self.mapVals['data_over'] = data_over
 
                 # plot each nscan:
-                if True:
+                if False:
                     data_to_plot = np.reshape(data_over, (self.nScans, -1))
                     for ind in range(self.nScans):
                         plt.plot(np.abs(data_to_plot[ind]), label=f'max RF:{p90} uT, Scan {ind+1}')
@@ -273,6 +273,6 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SearchP90PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRunAndAnalysis(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRunAndAnalysis(plotSeq=False, demo=False, standalone=True)
 
 
