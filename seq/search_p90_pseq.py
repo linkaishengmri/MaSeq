@@ -53,13 +53,13 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='search_p90', val='fid')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35344, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35385, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         
-        self.addParameter(key='rfExAmpSearchRange', string='RF Amp Searching Range (uT)', val=[110,1,135], field='RF',
+        self.addParameter(key='rfExAmpSearchRange', string='RF Amp Searching Range (uT)', val=[190,5,300], field='RF',
                           tip="[begin, step, end]")
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=300.0, units=units.us, field='RF')
-        self.addParameter(key='deadTime', string='Dead Time (us)', val=100.0, units=units.us, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
+        self.addParameter(key='deadTime', string='Dead Time (us)', val=300.0, units=units.us, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=500, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',

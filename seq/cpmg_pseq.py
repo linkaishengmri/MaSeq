@@ -60,7 +60,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35342  , units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35382  , units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         
@@ -68,9 +68,9 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.3, units=units.ms, field='SEQ')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=32, field='IM')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=5, units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=4000., units=units.ms, field='SEQ')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=320, field='IM')
         self.addParameter(key='etl', string='Echo train length', val=200, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
@@ -98,7 +98,9 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.standalone = standalone
 
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
-        max_rf_Hz = hw.max_cpmg_rf * 1e-6 * hw.gammaB
+        rfExTime_us = int(np.round(self.rfExTime * 1e6))
+        assert rfExTime_us in hw.max_cpmg_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
+        max_rf_Hz = hw.max_cpmg_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=10,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
@@ -108,7 +110,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
-            add_rx_points = 8,
+            add_rx_points = 10,
             use_multi_freq=True,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
@@ -118,6 +120,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.system = pp.Opts(
             rf_dead_time=10 * 1e-6,  # Dead time between RF pulses (s)
+            rf_ringdown_time= 10 * 1e-6,
             max_grad=30,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
@@ -174,11 +177,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         )
         
         adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration) 
-        delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - self.system.rf_dead_time)
+        delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - (self.system.rf_dead_time+self.system.rf_ringdown_time))
                               / self.system.block_duration_raster) * self.system.block_duration_raster   
-        delay_te2 = np.round(0.5 * (self.echoSpacing - self.rfReTime - readout_duration)
+        delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration) - self.system.rf_ringdown_time)
                               / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te3 = np.round((delay_te2 - self.system.rf_dead_time) 
+        delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration) - self.system.rf_dead_time) 
                               / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
@@ -188,8 +191,8 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
-        assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te1}"
-        assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te2}"
+        assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
+        assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
         
         acq_points = 0
         seq = pp.Sequence(system=self.system)
@@ -200,7 +203,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
 
             # Excitation pulse
-            seq.add_block(pp.make_delay(0.003-0.0009))
+            seq.add_block(pp.make_delay(0.00025))
             seq.add_block(rf_ex)
             seq.add_block(pp.make_delay(delay_te1))
             # Echo train
@@ -222,7 +225,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                 print("Timing check failed. Error listing follows:")
                 [print(e) for e in error_report]   
 
-            seq.plot()
+            seq.plot(show_blocks =True, time_range=(0,0.06))
 
         seq.set_definition(key="Name", value="cpmg")
         seq.write("cpmg.seq")
@@ -251,9 +254,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         if self.plotSeq and self.standalone:
             # Plot the sequence if requested and return immediately
+            self.expt.plot_sequence()
             self.sequencePlot(standalone=self.standalone)
             
         data_over = []
+         
         # If not plotting the sequence, start scanning
         if not self.plotSeq:
             # for scan in range(self.nScans):
