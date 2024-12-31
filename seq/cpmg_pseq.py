@@ -28,6 +28,35 @@ from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
+# max_cpmg_rf_arr = { #us:uT
+#     50: 330,
+#     100:300,
+#     200:250,
+#     300:200,
+#     400:150,
+#     500:127,
+#     600:127,
+#     700:127,
+#     800:127,
+#     900:127,
+#     1000:127,
+#     3000:127,
+# }
+# max_cpmg_rf_p180_arr = {
+#     50: 150,
+#     100:149,
+#     200:125,
+#     300:100,
+#     400:75,
+#     500:60,
+#     600:60,
+#     700:60,
+#     800:60,
+#     900:60,
+#     1000:60,
+#     3000:60,
+# }
+
 class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(CPMGPSEQ, self).__init__()
@@ -68,12 +97,12 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=5, units=units.ms, field='SEQ')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=4000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=320, field='IM')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.3, units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
         self.addParameter(key='etl', string='Echo train length', val=200, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
-                          tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
+                          tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
         self.addParameter(key='Exphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Excitation Phase Cycling', field='RF')
         self.addParameter(key='Refphase', string='RF Phase (deg)', val=[90, 90, 180, 180], tip='Refocusing Phase Cycling', field='RF')
@@ -99,8 +128,12 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
         rfExTime_us = int(np.round(self.rfExTime * 1e6))
+        rfReTime_us = int(np.round(self.rfReTime * 1e6))
         assert rfExTime_us in hw.max_cpmg_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
+        assert rfReTime_us in hw.max_cpmg_rf_p180_arr, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
+        
         max_rf_Hz = hw.max_cpmg_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
+        rf_ref_correction_coeff = 0.5 * hw.max_cpmg_rf_arr[rfExTime_us] / hw.max_cpmg_rf_p180_arr[rfReTime_us]
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=10,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
@@ -153,6 +186,8 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['acqTime'] = self.nPoints / bw * 1e-3 # ms
 
         readout_duration = sampling_period * 1e-6 * self.nPoints
+
+        readout_duration_rounded = np.ceil(sampling_period * self.nPoints * 4) / 4 * 1e-6
         if not self.demo:
             print(f'dwell time: {sampling_period} us, readout time: {readout_duration} s')
         
@@ -176,12 +211,15 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             delay=0,
         )
         
+        # correct p180:
+        rf_ref.signal = rf_ref_correction_coeff * rf_ref.signal 
+
         adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration) 
         delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - (self.system.rf_dead_time+self.system.rf_ringdown_time))
                               / self.system.block_duration_raster) * self.system.block_duration_raster   
-        delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration) - self.system.rf_ringdown_time)
+        delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_ringdown_time)
                               / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration) - self.system.rf_dead_time) 
+        delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_dead_time) 
                               / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
@@ -210,11 +248,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             for echoIndex in range(self.etl):
                 seq.add_block(rf_ref)
                 seq.add_block(pp.make_delay(delay_te2_with_offset))
-                seq.add_block(adc)
+                seq.add_block(adc, pp.make_delay(readout_duration_rounded))
                 seq.add_block(pp.make_delay(delay_te3_with_offset))
                 acq_points += self.nPoints
-
-            seq.add_block(pp.make_delay(recovery_time))
+            if not scan == self.nScans-1: 
+                seq.add_block(pp.make_delay(recovery_time))
 
         if plotSeq:
             # Check whether the timing of the sequence is correct
@@ -404,7 +442,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
