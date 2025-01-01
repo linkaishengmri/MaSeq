@@ -96,19 +96,19 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         
         # self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.3, field='RF')
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=.2, units=units.ms, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=.3, units=units.ms, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=3200, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=60, field='IM')
+        self.addParameter(key='etl', string='Echo train length', val=100, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
         self.addParameter(key='Exphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Excitation Phase Cycling', field='RF')
         self.addParameter(key='Refphase', string='RF Phase (deg)', val=[90, 90, 180, 180], tip='Refocusing Phase Cycling', field='RF')
         self.addParameter(key='Rxphase', string='RF Phase (deg)', val=[0, 180, 90, 270], tip='Rx Phase Cycling', field='RF')
-        self.addParameter(key='RxTimeOffset', string='Rx Time Offset (ms)', val=0, units=units.ms, field='SEQ')
+        self.addParameter(key='RxTimeOffset', string='Rx Time Offset (us)', val=20, units=units.us, field='SEQ')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 
@@ -218,28 +218,31 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration) 
         delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - (self.system.rf_dead_time+self.system.rf_ringdown_time))
                               / self.system.block_duration_raster) * self.system.block_duration_raster   
-        delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_ringdown_time)
-                              / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_dead_time) 
-                              / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
+        # delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_ringdown_time)
+        #                       / self.system.block_duration_raster) * self.system.block_duration_raster
+        # delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_dead_time) 
+        #                       / self.system.block_duration_raster) * self.system.block_duration_raster
+        # delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
+        # delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         
+        delay_rf_ref = np.round((self.echoSpacing - self.rfReTime - self.system.rf_dead_time - self.system.rf_ringdown_time)
+                               / self.system.block_duration_raster) * self.system.block_duration_raster
+        delay_adc = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_ringdown_time + self.RxTimeOffset)
+                               / self.system.block_duration_raster) * self.system.block_duration_raster
+        assert delay_adc + readout_duration_rounded < delay_rf_ref + self.rfReTime,  f"Error: adc delay is too long"
+
         recovery_time = self.repetitionTime - 0.5*(self.rfExTime+self.echoSpacing) - self.etl * self.echoSpacing
         # Assertions to check if times are greater than zero
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
         
         if self.etl == 1: # for debuging
-            delay_te2 = 10e-6 
-            delay_te3 = 10e-6 
-            delay_te2_with_offset = delay_te2
-            delay_te3_with_offset = delay_te3
-        else:
-            assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
-            assert delay_te3 > 0, f"Error: delay_te3 is non-positive: {delay_te3}"
-            assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
-            assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
+            delay_dead = 10e-6 
+        # else:
+        #     assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
+        #     assert delay_te3 > 0, f"Error: delay_te3 is non-positive: {delay_te3}"
+        #     assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
+        #     assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
         
         acq_points = 0
         seq = pp.Sequence(system=self.system)
@@ -249,16 +252,24 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             adc.phase_offset = RealRxphase[scan] * np.pi / 180
             rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
 
+            
             # Excitation pulse
             seq.add_block(pp.make_delay(0.00025))
             seq.add_block(rf_ex)
             seq.add_block(pp.make_delay(delay_te1))
-            # Echo train
-            for echoIndex in range(self.etl):
-                seq.add_block(rf_ref)
-                seq.add_block(pp.make_delay(delay_te2_with_offset))
+            seq.add_block(rf_ref)
+            if self.etl == 1:
+                seq.add_block(pp.make_delay(delay_dead))
                 seq.add_block(adc, pp.make_delay(readout_duration_rounded))
-                seq.add_block(pp.make_delay(delay_te3_with_offset))
+                seq.add_block(pp.make_delay(delay_dead))
+            else:
+                # Echo train
+                rf_ref.delay = rf_ref.delay + delay_rf_ref
+                adc.delay = adc.delay + delay_adc
+                for echoIndex in range(self.etl - 1):
+                    seq.add_block(rf_ref,adc)
+                    acq_points += self.nPoints
+                seq.add_block(rf_ref,adc)
                 acq_points += self.nPoints
             if not scan == self.nScans-1: 
                 seq.add_block(pp.make_delay(recovery_time))
