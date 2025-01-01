@@ -29,32 +29,33 @@ from pypulseq.convert import convert
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
 # max_cpmg_rf_arr = { #us:uT
-#     50: 330,
-#     100:300,
-#     200:250,
-#     300:200,
-#     400:150,
-#     500:127,
-#     600:127,
-#     700:127,
+#     50: 224,
+#     100:169,
+#     150:149,
+#     200:138,
+#     250:133,
+#     300:130,
+#     400:126,
+#     500:126,
+#     600:126,
+#     700:126,
 #     800:127,
-#     900:127,
-#     1000:127,
-#     3000:127,
+#     900:129,
+#     1000:130,
+#     1500:136,
+#     2000:133,
 # }
-# max_cpmg_rf_p180_arr = {
-#     50: 150,
-#     100:149,
-#     200:125,
-#     300:100,
-#     400:75,
-#     500:60,
-#     600:60,
-#     700:60,
-#     800:60,
-#     900:60,
-#     1000:60,
-#     3000:60,
+# max_cpmg_rf_p180_arr = { #us:uT
+#     100:114,
+#     200:86,
+#     300:76,
+#     400:70.5,
+#     500:68.5,
+#     600:67,
+#     700:67,
+#     800:67,
+#     900:67,
+#     1000:67,
 # }
 
 class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
@@ -89,7 +90,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35382  , units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35389  , units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         
@@ -97,10 +98,10 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.3, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=.2, units=units.ms, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=200, field='SEQ')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=3200, field='IM')
+        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
@@ -227,10 +228,18 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         recovery_time = self.repetitionTime - 0.5*(self.rfExTime+self.echoSpacing) - self.etl * self.echoSpacing
         # Assertions to check if times are greater than zero
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
-        assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
-        assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
-        assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
+        
+        if self.etl == 1: # for debuging
+            delay_te2 = 10e-6 
+            delay_te3 = 10e-6 
+            delay_te2_with_offset = delay_te2
+            delay_te3_with_offset = delay_te3
+        else:
+            assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
+            assert delay_te3 > 0, f"Error: delay_te3 is non-positive: {delay_te3}"
+            assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
+            assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
         
         acq_points = 0
         seq = pp.Sequence(system=self.system)
@@ -422,11 +431,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         # Add frequency spectrum to the layout
         result2 = {'widget': 'curve',
-                   'xData': fVector,
-                   'yData': [spectrum],
+                   'xData': tVector,#fVector,
+                   'yData': [np.angle(signal)], #[spectrum],
                    'xLabel': 'Frequency (kHz)',
-                   'yLabel': 'Spectrum amplitude (a.u.)',
-                   'title': 'Spectrum',
+                   'yLabel': 'Angle (Deg)',
+                   'title': 'Angle',
                    'legend': [''],
                    'row': 1,
                    'col': 0}
@@ -442,7 +451,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
