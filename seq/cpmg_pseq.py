@@ -98,10 +98,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=.2, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=1, units=units.ms, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=3200, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
+        self.addParameter(key='filterWindowSize', string='Filter Window Size', val=5, field='IM')
+        self.addParameter(key='etl', string='Echo train length', val=100, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
@@ -144,7 +145,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
-            add_rx_points = 10,
+            add_rx_points = 0,
             use_multi_freq=True,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
@@ -388,15 +389,35 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         else: 
             signal = self.mapVals['data']
 
-        # Average data
-        singal = np.average(np.reshape(signal, (self.nScans, -1)), axis=0)
-            
 
+        # Average data
+        signal = np.average(np.reshape(signal, (self.nScans, -1)), axis=0)
+
+          
+        # average filter
         bw = self.mapVals['bw_MHz']*1e3 # kHz
         nPoints = self.mapVals['nScans'] * self.mapVals['nPoints'] * self.mapVals['etl']
         deadTime = 0 #self.mapVals['deadTime']*1e-3 # ms
         rfRectExTime = self.mapVals['rfExTime']*1e-3 # ms
+        
         tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
+        tVecRes = np.reshape(tVector, newshape=(-1, self.mapVals['nPoints']))
+        
+        fir_coefficients = np.ones(self.mapVals['filterWindowSize']) / self.mapVals['filterWindowSize']
+        num_taps = len(fir_coefficients)
+        signal_waiting_for_filters = np.reshape(signal, newshape=(-1, self.mapVals['nPoints']))
+        output_length = signal_waiting_for_filters.shape[1] - num_taps + 1
+        filtered = np.zeros((signal_waiting_for_filters.shape[0], output_length), dtype=complex)
+        filtered_time = np.zeros((signal_waiting_for_filters.shape[0], output_length))
+
+        for i in range(signal_waiting_for_filters.shape[0]):
+            real_filtered = np.convolve(signal_waiting_for_filters[i].real, fir_coefficients, mode='valid')
+            imag_filtered = np.convolve(signal_waiting_for_filters[i].imag, fir_coefficients, mode='valid')
+            filtered[i] = real_filtered + 1j * imag_filtered
+            filtered_time[i] = tVecRes[i, num_taps - 1:] 
+        filtered_signal = np.reshape(filtered, newshape=(-1))
+        filtered_time_vector = np.reshape(filtered_time, newshape=(-1))
+        
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
         fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
@@ -404,6 +425,9 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
         fwhm=getFHWM(spectrum, fVector, bw)
         dB0=fwhm*1e6/fitedLarmor
+
+
+        # t_filtered = tVector[:filtered_signal.shape[0]]
 
         # for sequence in self.sequenceList.values():
         #     if 'larmorFreq' in sequence.mapVals:
@@ -423,7 +447,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                    'xData': tVector,
                    'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
                    'xLabel': 'Time (ms)',
-                   'yLabel': 'Signal amplitude (mV)',
+                   'yLabel': 'Signal amplitude',
                    'title': 'Signal vs time',
                    'legend': ['abs', 'real', 'imag'],
                    'row': 0,
@@ -434,14 +458,24 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                    'xData': tVector,#fVector,
                    'yData': [np.angle(signal)], #[spectrum],
                    'xLabel': 'Frequency (kHz)',
-                   'yLabel': 'Angle (Deg)',
+                   'yLabel': 'Angle (rad)',
                    'title': 'Angle',
                    'legend': [''],
                    'row': 1,
                    'col': 0}
+        
+        result3 = {'widget': 'curve',
+                   'xData': filtered_time_vector,
+                   'yData': [np.abs(filtered_signal), np.real(filtered_signal), np.imag(filtered_signal)],
+                   'xLabel': 'Time (ms)',
+                   'yLabel': 'Filtered signal amplitude',
+                   'title': 'Signal vs time',
+                   'legend': ['abs', 'real', 'imag'],
+                   'row': 2,
+                   'col': 0}
 
         # create self.out to run in iterative mode
-        self.output = [result1, result2]
+        self.output = [result1, result2, result3]
         self.saveRawData()
 
         if self.mode == 'Standalone':
@@ -451,7 +485,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
