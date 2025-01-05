@@ -89,20 +89,20 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.rxChannel = None
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35389  , units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35358, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
-        
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
+
         # self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.3, field='RF')
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=100.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=1, units=units.ms, field='SEQ')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=.2, units=units.ms, field='SEQ')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=5, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=5, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=100, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=1000, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
@@ -145,7 +145,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             tx_ch = self.txChannel,
             rx_ch = self.rxChannel,
-            add_rx_points = 0,
+            add_rx_points = 8,
             use_multi_freq=True,
         )
         assert (self.txChannel == 0 or self.txChannel == 1)
@@ -400,7 +400,16 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         deadTime = 0 #self.mapVals['deadTime']*1e-3 # ms
         rfRectExTime = self.mapVals['rfExTime']*1e-3 # ms
         
-        tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
+
+        def create_tVector(bw, nPoint, echoSpacing, etl):
+            point_interval = 1 / bw
+            window_duration = nPoint * point_interval
+            start_times = np.arange(0, etl * echoSpacing, echoSpacing)
+            tVector = np.concatenate([start_time + np.arange(nPoint) * point_interval for start_time in start_times])
+            return tVector
+
+        #tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
+        tVector = create_tVector(bw * 1e3, self.mapVals['nPoints'], self.mapVals['echoSpacing'], self.mapVals['etl'])
         tVecRes = np.reshape(tVector, newshape=(-1, self.mapVals['nPoints']))
         
         fir_coefficients = np.ones(self.mapVals['filterWindowSize']) / self.mapVals['filterWindowSize']
@@ -453,29 +462,29 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                    'row': 0,
                    'col': 0}
 
-        # Add frequency spectrum to the layout
-        result2 = {'widget': 'curve',
-                   'xData': tVector,#fVector,
-                   'yData': [np.angle(signal)], #[spectrum],
-                   'xLabel': 'Frequency (kHz)',
-                   'yLabel': 'Angle (rad)',
-                   'title': 'Angle',
-                   'legend': [''],
-                   'row': 1,
-                   'col': 0}
+        # # Add frequency spectrum to the layout
+        # result2 = {'widget': 'curve',
+        #            'xData': tVector,#fVector,
+        #            'yData': [np.angle(signal)], #[spectrum],
+        #            'xLabel': 'Time (ms)',
+        #            'yLabel': 'Angle (rad)',
+        #            'title': 'Angle',
+        #            'legend': [''],
+        #            'row': 1,
+        #            'col': 0}
         
-        result3 = {'widget': 'curve',
+        result2 = {'widget': 'curve',
                    'xData': filtered_time_vector,
                    'yData': [np.abs(filtered_signal), np.real(filtered_signal), np.imag(filtered_signal)],
                    'xLabel': 'Time (ms)',
                    'yLabel': 'Filtered signal amplitude',
                    'title': 'Signal vs time',
                    'legend': ['abs', 'real', 'imag'],
-                   'row': 2,
+                   'row': 1,
                    'col': 0}
 
         # create self.out to run in iterative mode
-        self.output = [result1, result2, result3]
+        self.output = [result1, result2]
         self.saveRawData()
 
         if self.mode == 'Standalone':
@@ -485,7 +494,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
