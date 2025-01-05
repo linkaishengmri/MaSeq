@@ -29,6 +29,8 @@ from pypulseq.convert import convert
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
 # max_cpmg_rf_arr = { #us:uT
+#     20: 365,
+#     30: 296,
 #     50: 224,
 #     100:169,
 #     150:149,
@@ -45,7 +47,8 @@ from pypulseq.convert import convert
 #     1500:136,
 #     2000:133,
 # }
-# max_cpmg_rf_p180_arr = { #us:uT
+# max_cpmg_rf_p180_arr = {#us:uT
+#     40:185,
 #     100:114,
 #     200:86,
 #     300:76,
@@ -57,7 +60,6 @@ from pypulseq.convert import convert
 #     900:67,
 #     1000:67,
 # }
-
 class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(CPMGPSEQ, self).__init__()
@@ -99,7 +101,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='rfReAmp', string='RF refocusing amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=.2, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=5, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=5, field='IM')
         self.addParameter(key='etl', string='Echo train length', val=1000, field='SEQ')
@@ -401,11 +403,14 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         rfRectExTime = self.mapVals['rfExTime']*1e-3 # ms
         
 
-        def create_tVector(bw, nPoint, echoSpacing, etl):
+        def create_tVector(bw, nPoint, echoSpacing, etl, RFinterval = False):
             point_interval = 1 / bw
-            window_duration = nPoint * point_interval
+            # window_duration = nPoint * point_interval
             start_times = np.arange(0, etl * echoSpacing, echoSpacing)
-            tVector = np.concatenate([start_time + np.arange(nPoint) * point_interval for start_time in start_times])
+            if RFinterval:
+                tVector = np.concatenate([start_time + np.arange(nPoint) * point_interval for start_time in start_times])
+            else:
+                tVector = np.reshape([np.arange(nPoint * etl) * point_interval], newshape=(-1))
             return tVector
 
         #tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
