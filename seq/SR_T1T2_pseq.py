@@ -72,8 +72,7 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
         self.larmorFreq = None 
         self.rfExFA = None
         self.rfReFA = None
-        # self.rfExAmp = None  
-        # self.rfReAmp = None  
+        self.filterWindowSize = None  
         self.rfExTime = None 
         self.rfReTime = None 
         self.echoSpacing = None  
@@ -96,14 +95,14 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
         self.inversionTime = None
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35358, units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35664, units=units.MHz, field='RF')
        
         # SR params:
         self.addParameter(key='saturationPulseqNum', string='Saturation pulse number', val=10, field='SEQ')
         self.addParameter(key='saturationIntervalDecay', string='Saturation interval decay', val=0.29, field='SEQ')
         self.addParameter(key='firstInterval', string='1st saturation interval (ms)', val=100, units=units.ms, field='SEQ')
-        self.addParameter(key='inversionTime', string='Inversion time (ms)', val=2, units=units.ms, field='SEQ')
+        self.addParameter(key='inversionTime', string='Inversion time (ms)', val=1500, units=units.ms, field='SEQ')
         
         # CPMG params
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
@@ -514,6 +513,8 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
                    'row': 1,
                    'col': 0}
 
+        self.mapVals['filtered_signalVStime'] = [filtered_time_vector,filtered_signal]
+
         # create self.out to run in iterative mode
         self.output = [result1, result2]
         self.saveRawData()
@@ -525,7 +526,7 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SRT1T2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
