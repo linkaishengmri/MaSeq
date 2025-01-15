@@ -101,7 +101,7 @@ class PFGPSEQ(blankSeq.MRIBLANKSEQ):
         
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
+        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35358, units=units.MHz, field='RF')
         
         # PFG params
@@ -269,9 +269,10 @@ class PFGPSEQ(blankSeq.MRIBLANKSEQ):
         delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         
-        recovery_time = self.repetitionTime - ( 0.5 * self.rfExTime + self.system.rf_dead_time 
+        recovery_time = np.round((self.repetitionTime - ( 0.5 * self.rfExTime + self.system.rf_dead_time 
                       + (self.etl-1) * self.echoSpacing +  self.FirstEchoSpacing 
-                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6)
+                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6))
+                        / self.system.block_duration_raster) * self.system.block_duration_raster
         # Assertions to check if times are greater than zero
         # assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"

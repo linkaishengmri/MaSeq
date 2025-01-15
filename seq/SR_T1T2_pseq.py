@@ -245,9 +245,10 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
         delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         
-        recovery_time = self.repetitionTime - (0.5 * self.rfExTime + self.system.rf_dead_time 
+        recovery_time = np.round((self.repetitionTime - (0.5 * self.rfExTime + self.system.rf_dead_time 
                       + self.etl * self.echoSpacing + np.sum((decay_array[:-1] + self.rfExTime + self.system.rf_dead_time + self.system.rf_ringdown_time)) + self.inversionTime
-                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6)
+                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6))
+                      / self.system.block_duration_raster) * self.system.block_duration_raster
         # Assertions to check if times are greater than zero
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
@@ -526,7 +527,7 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SRT1T2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

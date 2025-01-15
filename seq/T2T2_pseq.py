@@ -72,13 +72,12 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
         self.larmorFreq = None 
         self.rfExFA = None
         self.rfReFA = None
-        # self.rfExAmp = None  
-        # self.rfReAmp = None  
         self.rfExTime = None 
         self.rfReTime = None 
         self.echoSpacing = None  
         self.repetitionTime = None  
         self.nPoints = None 
+        self.filterWindowSize = None
         self.etl = None  
         self.bandwidth = None
         self.acqTime = None  
@@ -98,7 +97,7 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
         
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
+        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35358, units=units.MHz, field='RF')
         
         # 1st T2 params:
@@ -251,9 +250,11 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
         delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         
         
-        recovery_time = self.repetitionTime - ( 0.5 * self.rfExTime + self.system.rf_dead_time 
+        recovery_time = np.round((self.repetitionTime - ( 0.5 * self.rfExTime + self.system.rf_dead_time 
                       + self.etl * self.echoSpacing + self.firstEtl * self.echoSpacing + delay_mix
-                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6)
+                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6))
+                      / self.system.block_duration_raster) * self.system.block_duration_raster
+        
         # Assertions to check if times are greater than zero
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
@@ -540,7 +541,7 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = T2T2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
