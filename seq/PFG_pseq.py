@@ -178,7 +178,7 @@ class PFGPSEQ(blankSeq.MRIBLANKSEQ):
         self.system = pp.Opts(
             rf_dead_time=10 * 1e-6,  # Dead time between RF pulses (s)
             rf_ringdown_time= 10 * 1e-6,
-            max_grad=30,  # Maximum gradient strength (mT/m)
+            max_grad=60,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
             slew_unit='mT/m/ms',  # Units of gradient slew rate
@@ -509,7 +509,8 @@ class PFGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
-
+        self.mapVals['filtered_signalVStime'] = [filtered_time_vector, filtered_signal]
+        
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,

@@ -497,7 +497,8 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
-
+        self.mapVals['filtered_signalVStime'] = [filtered_time_vector, filtered_signal]
+        
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,

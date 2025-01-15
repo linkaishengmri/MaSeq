@@ -96,13 +96,13 @@ class FFGPSEQ(blankSeq.MRIBLANKSEQ):
 
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
+        self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35358, units=units.MHz, field='RF')
         
         # FFG
-        self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=0.5, units=units.ms, field='SEQ')
+        self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=0.001, units=units.ms, field='SEQ')
         self.addParameter(key='gradDeadTime', string='Grad. dead duration (ms)', val=2, units=units.ms, field='SEQ')
-        self.addParameter(key='gradAmp', string='Grad. amplitude (mT/m)', val=[20, 20, 20], field='SEQ')
+        self.addParameter(key='gradAmp', string='Grad. amplitude (mT/m)', val=[20, 0, 0], field='SEQ')
         self.addParameter(key='FirstEchoSpacing', string='First echo spacing (ms)', val=10, units=units.ms, field='SEQ')
         
         # CPMG
@@ -272,9 +272,10 @@ class FFGPSEQ(blankSeq.MRIBLANKSEQ):
         delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         
-        recovery_time = self.repetitionTime - ( 0.5 * self.rfExTime + self.system.rf_dead_time 
+        recovery_time = np.round((self.repetitionTime - ( 0.5 * self.rfExTime + self.system.rf_dead_time 
                       + (self.etl-1) * self.echoSpacing + 2 * self.FirstEchoSpacing + self.gradDeadTime * 2
                       + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6)
+                      ) / self.system.block_duration_raster) * self.system.block_duration_raster
         # Assertions to check if times are greater than zero
         # assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
@@ -519,7 +520,8 @@ class FFGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
-
+        self.mapVals['filtered_signalVStime'] = [filtered_time_vector, filtered_signal]
+        
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,
@@ -563,7 +565,7 @@ class FFGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = FFGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
