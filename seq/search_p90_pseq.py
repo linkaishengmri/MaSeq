@@ -52,14 +52,14 @@ class SearchP90PSEQ(blankSeq.MRIBLANKSEQ):
 
 
         self.addParameter(key='seqName', string='search_p90', val='fid')
-        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35393, units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35674, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         
         self.addParameter(key='rfExAmpSearchRange', 
-                          string='RF Amp Searching Range (uT)', val=[355,1,375], field='RF',
+                          string='RF Amp Searching Range (uT)', val=[120,2,136], field='RF',
                           tip="[begin, step, end]")
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, units=units.us, field='RF')
         
         
         self.addParameter(key='deadTime', string='Dead Time (us)', val=300.0, units=units.us, field='SEQ')
