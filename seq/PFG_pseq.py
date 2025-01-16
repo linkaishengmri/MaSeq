@@ -108,7 +108,7 @@ class PFGPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='p90GradDeadTime', string='Dead time between p90 and grad.', val=1, units=units.ms, field='OTH')
         self.addParameter(key='p180GradDeadTime', string='Dead time between p180 and grad.', val=1, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=0.5, units=units.ms, field='OTH')
-        self.addParameter(key='gradTime', string='Grad. duration (ms)', val=8, units=units.ms, field='SEQ')
+        self.addParameter(key='gradTime', string='Grad. duration (ms)', val=12, units=units.ms, field='SEQ')
         self.addParameter(key='gradAmp', string='Grad. amplitude (mT/m)', val=[36.0, 0, 0], field='SEQ')
         self.addParameter(key='FirstEchoSpacing', string='First echo spacing (ms)', val=50, units=units.ms, field='SEQ')
         
@@ -554,7 +554,7 @@ class PFGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = PFGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
