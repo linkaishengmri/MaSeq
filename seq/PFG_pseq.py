@@ -101,23 +101,23 @@ class PFGPSEQ(blankSeq.MRIBLANKSEQ):
         
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35358, units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35642, units=units.MHz, field='RF')
         
         # PFG params
         self.addParameter(key='p90GradDeadTime', string='Dead time between p90 and grad.', val=1, units=units.ms, field='OTH')
         self.addParameter(key='p180GradDeadTime', string='Dead time between p180 and grad.', val=1, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=0.5, units=units.ms, field='OTH')
-        self.addParameter(key='gradTime', string='Grad. duration (ms)', val=4, units=units.ms, field='SEQ')
-        self.addParameter(key='gradAmp', string='Grad. amplitude (mT/m)', val=[20.0, 20.0, 20.0], field='SEQ')
-        self.addParameter(key='FirstEchoSpacing', string='First echo spacing (ms)', val=40, units=units.ms, field='SEQ')
+        self.addParameter(key='gradTime', string='Grad. duration (ms)', val=8, units=units.ms, field='SEQ')
+        self.addParameter(key='gradAmp', string='Grad. amplitude (mT/m)', val=[36.0, 0, 0], field='SEQ')
+        self.addParameter(key='FirstEchoSpacing', string='First echo spacing (ms)', val=50, units=units.ms, field='SEQ')
         
         # CPMG params
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3500., units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=25.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=50.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.7, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=10, field='IM')
