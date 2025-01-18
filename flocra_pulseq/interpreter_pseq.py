@@ -5,6 +5,7 @@
 import numpy as np
 import logging # For errors
 from flocra_pulseq.interpreter import PSInterpreter
+import flocra_pulseq.grad_preemphasis_pseq as gpe
 class PseqInterpreter(PSInterpreter):
     
 
@@ -20,7 +21,16 @@ class PseqInterpreter(PSInterpreter):
                  rx_ch = 0, # RX channel index: either 0 or 1. [TODO] Both 0 and 1 is under construction
                  grad_eff = [0.4113, 0.9094,1.0000],  # gradient coefficient of efficiency
                  use_multi_freq = False,
-                 add_rx_points = 0):
+                 add_rx_points = 0,
+                 use_grad_preemphasis = False,
+                 grad_preemphasis_coeff = {
+                        'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]), 
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'yy':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                 },):
         """
         Create PSInterpreter object for FLOCRA with system parameters.
 
@@ -68,7 +78,8 @@ class PseqInterpreter(PSInterpreter):
         self._rx_phase_dict = {'rx0': np.array([], dtype=complex), 'rx1':  np.array([], dtype=complex)}
         if use_multi_freq:
             self._var_names = self._var_names + ('lo0_freq_offset', 'lo1_freq_offset', 'lo0_rst', 'lo1_rst')
-            
+        self._use_grad_preemphasis = use_grad_preemphasis
+        self._grad_preemphasis_coeff = grad_preemphasis_coeff
     # Encode all blocks
     def _stream_all_blocks(self):
         """
@@ -330,6 +341,28 @@ class PseqInterpreter(PSInterpreter):
         # Return durations for each PR and leading edge values
         return (out_dict, duration, int(readout_num))
     #endregion
+    def pre_emphasis_grad(self, grad_dict, grad_preemphasis_coeff):
+        # interpolate_grad_waveform
+        grad_x = grad_dict['grad_vx']
+        grad_y = grad_dict['grad_vy']
+        grad_z = grad_dict['grad_vz']
+        grad_x_t, grad_x_amp = gpe.fill_grad_waveform(grad_x[0], grad_x[1], self._grad_t)
+        grad_y_t, grad_y_amp = gpe.fill_grad_waveform(grad_y[0], grad_y[1], self._grad_t)
+        grad_z_t, grad_z_amp = gpe.fill_grad_waveform(grad_z[0], grad_z[1], self._grad_t)
+
+        # pre_emphasis_grad_directterm
+        grad_x_amp = gpe.pre_emphasis_grad_directterm((grad_x_t, grad_x_amp), self._grad_preemphasis_coeff['xx'])
+        grad_y_amp = gpe.pre_emphasis_grad_directterm((grad_y_t, grad_y_amp), self._grad_preemphasis_coeff['yy'])
+        grad_z_amp = gpe.pre_emphasis_grad_directterm((grad_z_t, grad_z_amp), self._grad_preemphasis_coeff['zz'])
+
+        grad_x_t, grad_x_amp = gpe.reduce_grad_waveform(grad_x_t, grad_x_amp)
+        grad_y_t, grad_y_amp = gpe.reduce_grad_waveform(grad_y_t, grad_y_amp)
+        grad_z_t, grad_z_amp = gpe.reduce_grad_waveform(grad_z_t, grad_z_amp)
+
+        # [TODO] cross term compensation
+        # [TODO here]
+
+        return {'grad_vx': (grad_x_t, grad_x_amp), 'grad_vy': (grad_y_t, grad_y_amp), 'grad_vz': (grad_z_t, grad_z_amp)}
     # Wrapper for full compilation
     def interpret(self, pulseq_file):
         """
@@ -353,7 +386,11 @@ class PseqInterpreter(PSInterpreter):
         self._compile_tx_data()
         self._compile_grad_data()
         self.out_data, self.readout_number = self._stream_all_blocks()
-        self.is_assembled = True
+        if self._use_grad_preemphasis:
+            output_grad_dict = self.pre_emphasis_grad(self.out_data, self._grad_preemphasis_coeff)
+            for grad_name in ['grad_vx', 'grad_vy', 'grad_vz']:
+                self.out_data[grad_name] = output_grad_dict[grad_name]
+                self.is_assembled = True
         param_dict = {'readout_number' : self.readout_number, 'tx_t' : self._tx_t, 'rx_t' : self._rx_t, 'grad_t': self._grad_t}
         for key, value in self._definitions.items():
             if key in param_dict:

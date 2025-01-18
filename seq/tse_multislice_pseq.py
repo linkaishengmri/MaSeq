@@ -154,7 +154,17 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             use_multi_freq = True,
             add_rx_points = 0,
-            tx_t= 1229/122.88 # us
+            tx_t= 1229/122.88, # us
+            use_grad_preemphasis=True,
+            grad_preemphasis_coeff={
+                        'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]), 
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'yy':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                 }
+
         )
         
         '''
@@ -922,7 +932,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
