@@ -30,7 +30,7 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "tse_pypulseq.seq"):
     seq = pp.Sequence(system)  # Create a new sequence object
     fov = 200e-3  # Define FOV and resolution
     Nx, Ny = 256, 32
-    n_echo = 16  # Number of echoes
+    n_echo = 1  # Number of echoes
     n_slices = 3
     rf_flip = 180  # Flip angle
     if isinstance(rf_flip, int):

@@ -86,8 +86,8 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
-        self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=4*20.0, units=units.ms, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
@@ -155,7 +155,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             use_multi_freq = True,
             add_rx_points = 0,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=True,
+            use_grad_preemphasis=False,
             grad_preemphasis_coeff={
                         'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]), 
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
@@ -643,6 +643,26 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                     [print(e) for e in error_report]
                 print(batches[batch_num].test_report())
                 batches[batch_num].plot()
+                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
+
+                plt.figure(10)
+                plt.plot(k_traj[0],k_traj[1],linewidth=1)
+                plt.plot(k_traj_adc[0],k_traj_adc[1],'.', markersize=1.4)
+                plt.axis("equal")
+                plt.title("k-space trajectory (kx/ky)")
+
+                plt.figure(11)
+                plt.plot(t_adc, k_traj_adc.T, linewidth=1)
+                plt.xlabel("Time of acqusition (s)")
+                plt.ylabel("Phase")
+                
+                plt.figure(12)
+                t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
+                plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
+                plt.axis("equal")
+                plt.colorbar(label='Normalized Time')  # 添加颜色条
+                plt.title("k-space trajectory (kx/ky) with Gradient")
+                plt.show()
 
             batches[batch_num].set_definition(key="Name", value="tse")
             batches[batch_num].set_definition(key="FOV", value=self.fov)
