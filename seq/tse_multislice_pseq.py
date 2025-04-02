@@ -66,14 +66,14 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35206, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35577, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=300.0, units=units.ms, field='SEQ')
         
-        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
@@ -85,10 +85,10 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
-        self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
+        self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
         self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=20.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=16.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=16.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=2, field='OTH',
@@ -143,7 +143,14 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         '''
 
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
-        max_rf_Hz = hw.max_rf * 1e-6 * hw.gammaB
+        rfExTime_us = int(np.round(self.rfSincExTime * 1e6))
+        rfReTime_us = int(np.round(self.rfSincReTime * 1e6))
+        assert rfExTime_us in hw.max_sinc_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
+        assert rfReTime_us in hw.max_sinc_rf_arr_p180, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
+        
+        max_rf_Hz = hw.max_sinc_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
+        rf_ref_correction_coeff = 0.5 * hw.max_sinc_rf_arr[rfExTime_us] / hw.max_sinc_rf_arr_p180[rfReTime_us]
+        
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
@@ -274,6 +281,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             use="refocusing",
             return_gz=True,
         )
+        rf_ref.signal = rf_ref.signal * rf_ref_correction_coeff
         gs_ref = pp.make_trapezoid(
             channel="z",
             system=self.system,
@@ -952,7 +960,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

@@ -75,7 +75,7 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 32, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
@@ -133,7 +133,15 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         '''
 
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
-        max_rf_Hz = hw.max_rf * 1e-6 * hw.gammaB
+ 
+        rfExTime_us = int(np.round(self.rfSincExTime * 1e6))
+        rfReTime_us = int(np.round(self.rfSincReTime * 1e6))
+        assert rfExTime_us in hw.max_sinc_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
+        assert rfReTime_us in hw.max_sinc_rf_arr_p180, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
+        
+        max_rf_Hz = hw.max_sinc_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
+        rf_ref_correction_coeff = 0.5 * hw.max_sinc_rf_arr[rfExTime_us] / hw.max_sinc_rf_arr_p180[rfReTime_us]
+        
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
@@ -249,6 +257,7 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             use="refocusing",
             return_gz=True,
         )
+        rf180.signal = rf180.signal * rf_ref_correction_coeff
         delta_kx = 1 / self.fov[0]
         delta_ky = 1 / self.fov[1]
         
@@ -778,7 +787,7 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

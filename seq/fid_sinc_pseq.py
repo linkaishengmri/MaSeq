@@ -64,7 +64,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='nPoints', val=2048, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
-        self.addParameter(key='shimming', string='Shimming', val=[0.0, 0.0, 0.0], field='SEQ')
+        self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 
