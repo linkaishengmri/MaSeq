@@ -1,7 +1,7 @@
 """
-Created on Tuesday, Apr 1st 2024
+Created on Tuesday, Nov 18th 2024
 @author: Kaisheng Lin, School of Electronics, Peking University, China
-@Summary: SE sequence, implemented with PyPulseq and compatible with MaSeq.
+@Summary: TSE sequence (RARE), implemented with PyPulseq and compatible with MaSeq.
 """
 
 import os
@@ -34,9 +34,9 @@ import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
 
-class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
+class TSEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(SEMultisliceDebugPSEQ, self).__init__()
+        super(TSEMultisliceDebugPSEQ, self).__init__()
         # Input the parameters
         self.output = None
         self.expt = None
@@ -47,33 +47,34 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.rfSincExTime = None
         self.rfSincReTime = None
         self.repetitionTime = None
-        self.echoTime = None
+        self.echoSpacing = None
         self.fovInPlane = None
         self.dfov = None
         self.nPoints = None
         self.axesOrientation = None
+        self.riseTime = None
         self.bandwidth = None
         self.DephTime = None
         self.shimming = None
         self.thickness = None
         self.sliceGap = None
+        self.etl = None
+        self.effEchoTime = None
         self.phaseCycleEx = None
-        self.sliceGradComp = None
-        self.enableGrad = None
-        self.maxRFP90 = None
-        self.maxRFP180 = None
+        self.fsp_r = None
+        self.fsp_s = None
 
-        self.addParameter(key='seqName', string='se', val='se')
+        self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35592, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35577, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=500.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=15.0, units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=300.0, units=units.ms, field='SEQ')
+        
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
-        self.addParameter(key='thickness', string='Slice thickness (mm)', val=8, units=units.mm, field='IM')
+        self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
@@ -82,17 +83,25 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
+        self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
+        self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=16.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=16.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='DephTime', string='Dephasing time (ms)', val=1.0, units=units.ms, field='OTH')
-        self.addParameter(key='sliceGradComp', string='Slice gradient compensation', val=0.5, field='OTH',
-                          tip="Slice gradient compensation factor. This value is used to adjust the slice selection gradient amplitude.")
-        self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 1], field='OTH',
+        self.addParameter(key='fsp_r', string='Readout Spoiling', val=2, field='OTH',
+                          tip="Gradient spoiling for readout.")
+        self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
+                          tip="Gradient spoiling for slice.")
+        self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 0], field='OTH',
                           tip="Enable gradients")
         self.addParameter(key='maxRFP90', string='Max RF Sinc(uT)', val=27, field='OTH')
         self.addParameter(key='maxRFP180', string='Max RF Sinc(uT)', val=27, field='OTH')
         
+        
+
     def sequenceInfo(self):
         print("Pulseq Reader")
         print("Author: PhD. J.M. Algarín")
@@ -104,7 +113,7 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
                 self.mapVals['nScans'] *
-                self.mapVals['nPoints'][1]  / 60)
+                self.mapVals['nPoints'][1] / self.mapVals['etl'] / 60)
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
@@ -227,31 +236,46 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         Step 5: Define sequence blocks.
         In this step, you will define the building blocks of the MRI sequence, including the RF pulses and gradient pulses.
         '''
-        TE = self.echoTime
+        TE = self.echoSpacing
         TR = self.repetitionTime
-        tau = TE / 2
-        DepTime = self.DephTime
-
+        TE_eff = self.effEchoTime
+        n_echo = self.etl
         Nx, Ny, n_slices = self.nPoints
 
         sampling_time = sampling_period * 1e-6 * self.nPoints[0]
         readout_time = sampling_time + 2 * self.system.adc_dead_time
+        dG=self.riseTime
         t_ex = self.rfSincExTime
         t_exwd = t_ex + self.system.rf_ringdown_time + self.system.rf_dead_time
         t_ref = self.rfSincReTime
         t_refwd = t_ref + self.system.rf_ringdown_time + self.system.rf_dead_time
+        t_sp = 0.5 * (TE - readout_time - t_refwd)
+        t_spex = 0.5 * (TE - t_exwd - t_refwd)
+        fsp_r = self.fsp_r
+        fsp_s = self.fsp_s
+        
 
-        rf90, gz90, _ = pp.make_sinc_pulse(
+        rf_ex, gz, _ = pp.make_sinc_pulse(
             flip_angle=self.rfExFA * np.pi / 180,
-            system=self.system,
             duration=t_ex,
             slice_thickness=self.thickness,
             apodization=0.5,
             time_bw_product=4,
+            system=self.system,
             phase_offset= np.pi / 2,
-            return_gz=True,
+            return_gz=True
         )
-        rf180, gz180, _ = pp.make_sinc_pulse(
+        gs_ex = pp.make_trapezoid(
+            channel="z",
+            system=self.system,
+            amplitude=gz.amplitude,
+            flat_time=t_exwd,
+            rise_time=dG,
+        )
+
+
+
+        rf_ref, gz, _ = pp.make_sinc_pulse(
             flip_angle=self.rfReFA * np.pi / 180,
             system=self.system,
             duration=t_ref,
@@ -262,35 +286,163 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
             use="refocusing",
             return_gz=True,
         )
-        rf180.signal = rf180.signal * rf_ref_correction_coeff
-        delta_kx = 1 / self.fov[0]
-        delta_ky = 1 / self.fov[1]
+        rf_ref.signal = rf_ref.signal * rf_ref_correction_coeff
+        gs_ref = pp.make_trapezoid(
+            channel="z",
+            system=self.system,
+            amplitude=gs_ex.amplitude,
+            flat_time=t_refwd,
+            rise_time=dG,
+        )
+
+        ags_ex = gs_ex.area / 2
+        gs_spr = pp.make_trapezoid(
+            channel="z",
+            system=self.system,
+            area=ags_ex * (1 + fsp_s),
+            duration=t_sp,
+            rise_time=dG,
+        )
+        gs_spex = pp.make_trapezoid(
+            channel="z", system=self.system, area=ags_ex * fsp_s, duration=t_spex, rise_time=dG
+        )
+
+        gr_acq = pp.make_trapezoid(
+            channel="x",
+            system=self.system,
+            flat_area=Nx/self.fov[0],
+            flat_time=readout_time,
+            rise_time=dG,
+        )
+        adc = pp.make_adc(
+            num_samples=Nx, duration=sampling_time, delay=self.system.adc_dead_time
+        )
+        gr_spr = pp.make_trapezoid(
+            channel="x",
+            system=self.system,
+            area=gr_acq.area * fsp_r,
+            duration=t_sp,
+            rise_time=dG,
+        )
+
+        agr_spr = gr_spr.area
+        agr_preph = gr_acq.area / 2 + agr_spr
+        gr_preph = pp.make_trapezoid(
+            channel="x", system=self.system, area=agr_preph, duration=t_spex, rise_time=dG
+        )
+
+
+        # Phase-encoding
+        n_ex = int(np.floor(Ny / n_echo))
+        pe_steps = np.arange(1, n_echo * n_ex + 1) - 0.5 * n_echo * n_ex - 1
+        # if divmod(n_echo, 2)[1] == 0:
+        #     pe_steps = np.roll(pe_steps, [0, int(-np.round(n_ex / 2))])
         
-        k_widthx = Nx * delta_kx
-        k_widthy = Ny * delta_ky
-        gx =  pp.make_trapezoid(channel='x', system=self.system, flat_area=k_widthx, flat_time=readout_time)
-        adc = pp.make_adc(num_samples=Nx, duration=gx.flat_time, delay=gx.rise_time)
+        shift_steps = np.round(TE_eff/TE - n_echo // 2 - 1) * n_ex
+        pe_steps = np.roll(pe_steps, [0, int(shift_steps)])
 
+        pe_order = pe_steps.reshape((n_ex, n_echo), order="F").T
+        phase_areas = pe_order / self.fov[1]
 
-        phase_areas = (np.arange(Ny) - (Ny // 2)) * delta_ky
-        gz_reph = pp.make_trapezoid(channel='z', system=self.system, area=-gz90.area * self.sliceGradComp, duration=DepTime * 2)
-        gx_pre = pp.make_trapezoid(channel='x', system=self.system, area=gx.area / 2, duration=DepTime * 2)
-        gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=phase_areas[-1], duration=DepTime * 2)
-        gz_spoil = pp.make_trapezoid(channel='z', system=self.system, area=gz90.area * 1, duration=DepTime)
+        # Split gradients and recombine into blocks
+        gs1_times = np.array([0, gs_ex.rise_time])
+        gs1_amp = np.array([0, gs_ex.amplitude])
+        gs1 = pp.make_extended_trapezoid(channel="z", times=gs1_times, amplitudes=gs1_amp)
 
-        delay1 = tau - pp.calc_duration(rf90) / 2 - pp.calc_duration(gx_pre)
-        delay1 -= pp.calc_duration(gz_spoil) - pp.calc_duration(rf180) / 2
-        delay1 = pp.make_delay(delay1)
-        delay2 = tau - pp.calc_duration(rf180) / 2 - pp.calc_duration(gz_spoil)
-        delay2 -= pp.calc_duration(gx) / 2
-        delay2 = pp.make_delay(delay2)
-        delay_TR = TR - pp.calc_duration(rf90) / 2 - pp.calc_duration(gx) / 2 - TE
-        delay_TR -= pp.calc_duration(gy_pre)
-        delay_TR = pp.make_delay(delay_TR)
-        print(f'delay_1: {delay1}')
-        print(f'delay_2: {delay1}')
-        print(f'delay_TR: {delay_TR}')
+        gs2_times = np.array([0, gs_ex.flat_time])
+        gs2_amp = np.array([gs_ex.amplitude, gs_ex.amplitude])
+        gs2 = pp.make_extended_trapezoid(channel="z", times=gs2_times, amplitudes=gs2_amp)
 
+        gs3_times = np.array(
+            [
+                0,
+                gs_spex.rise_time,
+                gs_spex.rise_time + gs_spex.flat_time,
+                gs_spex.rise_time + gs_spex.flat_time + gs_spex.fall_time,
+            ]
+        )
+        gs3_amp = np.array(
+            [gs_ex.amplitude, gs_spex.amplitude, gs_spex.amplitude, gs_ref.amplitude]
+        )
+        gs3 = pp.make_extended_trapezoid(channel="z", times=gs3_times, amplitudes=gs3_amp)
+
+        gs4_times = np.array([0, gs_ref.flat_time])
+        gs4_amp = np.array([gs_ref.amplitude, gs_ref.amplitude])
+        gs4 = pp.make_extended_trapezoid(channel="z", times=gs4_times, amplitudes=gs4_amp)
+
+        gs5_times = np.array(
+            [
+                0,
+                gs_spr.rise_time,
+                gs_spr.rise_time + gs_spr.flat_time,
+                gs_spr.rise_time + gs_spr.flat_time + gs_spr.fall_time,
+            ]
+        )
+        gs5_amp = np.array([gs_ref.amplitude, gs_spr.amplitude, gs_spr.amplitude, 0])
+        gs5 = pp.make_extended_trapezoid(channel="z", times=gs5_times, amplitudes=gs5_amp)
+
+        gs7_times = np.array(
+            [
+                0,
+                gs_spr.rise_time,
+                gs_spr.rise_time + gs_spr.flat_time,
+                gs_spr.rise_time + gs_spr.flat_time + gs_spr.fall_time,
+            ]
+        )
+        gs7_amp = np.array([0, gs_spr.amplitude, gs_spr.amplitude, gs_ref.amplitude])
+        gs7 = pp.make_extended_trapezoid(channel="z", times=gs7_times, amplitudes=gs7_amp)
+
+        # Readout gradient
+        gr3 = gr_preph
+
+        gr5_times = np.array(
+            [
+                0,
+                gr_spr.rise_time,
+                gr_spr.rise_time + gr_spr.flat_time,
+                gr_spr.rise_time + gr_spr.flat_time + gr_spr.fall_time,
+            ]
+        )
+        gr5_amp = np.array([0, gr_spr.amplitude, gr_spr.amplitude, gr_acq.amplitude])
+        gr5 = pp.make_extended_trapezoid(channel="x", times=gr5_times, amplitudes=gr5_amp)
+
+        gr6_times = np.array([0, readout_time])
+        gr6_amp = np.array([gr_acq.amplitude, gr_acq.amplitude])
+        gr6 = pp.make_extended_trapezoid(channel="x", times=gr6_times, amplitudes=gr6_amp)
+
+        gr7_times = np.array(
+            [
+                0,
+                gr_spr.rise_time,
+                gr_spr.rise_time + gr_spr.flat_time,
+                gr_spr.rise_time + gr_spr.flat_time + gr_spr.fall_time,
+            ]
+        )
+        gr7_amp = np.array([gr_acq.amplitude, gr_spr.amplitude, gr_spr.amplitude, 0])
+        gr7 = pp.make_extended_trapezoid(channel="x", times=gr7_times, amplitudes=gr7_amp)
+
+        # Fill-times
+        t_ex = pp.calc_duration(gs1) + pp.calc_duration(gs2) + pp.calc_duration(gs3)
+        t_ref = (
+            pp.calc_duration(gs4)
+            + pp.calc_duration(gs5)
+            + pp.calc_duration(gs7)
+            + readout_time
+        )
+        t_end = pp.calc_duration(gs4) + pp.calc_duration(gs5)
+
+        TE_train = t_ex + n_echo * t_ref + t_end
+        TR_fill = (TR - n_slices * TE_train) / n_slices
+        # Round to gradient raster
+        TR_fill = self.system.grad_raster_time * np.round(TR_fill / self.system.grad_raster_time)
+        if TR_fill < 0:
+            TR_fill = 1e-3
+            warnings.warn(
+                f"TR too short, adapted to include all slices to: {1000 * n_slices * (TE_train + TR_fill)} ms"
+            )
+        else:
+            print(f"TR fill: {1000 * TR_fill} ms")
+        delay_TR = pp.make_delay(TR_fill)
 
         def runBatches_pseq(waveforms, n_readouts, frequency=hw.larmorFreq, bandwidth=0.03):
             """
@@ -428,24 +580,22 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
             """
             
             n_rd_points = 0
-            rf_ex_cycle = np.tile(np.array(self.phaseCycleEx), int(np.ceil((Ny+1) / len(self.phaseCycleEx)))) / 180 * np.pi
+            rf_ex_cycle = np.tile(np.array(self.phaseCycleEx), int(np.ceil((n_ex+1) / len(self.phaseCycleEx)))) / 180 * np.pi
 
-            # Multi-slice is not available so far!
-            assert n_slices == 1, "Multi-slice is not available so far!"
-            for k_ex in range(Ny):
+            for k_ex in range(1, n_ex + 1):
                     
                 for s in range(n_slices):
-                    rf90.freq_offset = (
-                        gz90.amplitude * slice_positions[s]
+                    rf_ex.freq_offset = (
+                        gs_ex.amplitude * slice_positions[s]
                     )
-                    rf180.freq_offset = (
-                        gz180.amplitude * slice_positions[s]
+                    rf_ref.freq_offset = (
+                        gs_ref.amplitude * slice_positions[s]
                     )
-                    rf90.phase_offset = (
+                    rf_ex.phase_offset = (
                         np.pi / 2 + rf_ex_cycle[k_ex]
-                        - 2 * np.pi * rf90.freq_offset * pp.calc_rf_center(rf90)[0]
+                        - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
                     )
-                    rf_ref_offset_for_slice = - 2 * np.pi * rf180.freq_offset * pp.calc_rf_center(rf180)[0]
+                    rf_ref_offset_for_slice = - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     rf_ref_offset = rf_ref_offset_for_slice + 0
                     adc.phase_offset = rf_ex_cycle[k_ex]
                     # rf_ref.phase_offset = (
@@ -454,38 +604,62 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
                     # )
 
                     if self.EnableGrad[0] == 0:
-                        gx.amplitude = 0
-                        gx_pre.amplitude = 0
-                    if self.EnableGrad[1] == 0:
-                        gy_pre.amplitude = 0
+                        gr3.amplitude = 0
+                        gr5.waveform = np.zeros_like(gr5.waveform)
+                        gr6.waveform = np.zeros_like(gr6.waveform)
+                        gr7.waveform = np.zeros_like(gr7.waveform)
+
                     if self.EnableGrad[2] == 0:
-                        gz90.amplitude = 0
-                        gz180.amplitude = 0
-                        gz_spoil.amplitude = 0
-                        gz_reph.amplitude = 0
-                    batches[batch_num].add_block(rf90, gz90)
-                    gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=-phase_areas[k_ex], duration=self.DephTime*2)
-                    if self.EnableGrad[1] == 0:
-                        gy_pre.amplitude = 0
+                        gs1.waveform = np.zeros_like(gs1.waveform)
+                        gs2.waveform = np.zeros_like(gs2.waveform)
+                        gs3.waveform = np.zeros_like(gs3.waveform)
+                        gs4.waveform = np.zeros_like(gs4.waveform)
+                        gs5.waveform = np.zeros_like(gs5.waveform)
+                        gs7.waveform = np.zeros_like(gs7.waveform)
+
+                    batches[batch_num].add_block(gs1)
+                    batches[batch_num].add_block(gs2, rf_ex)
+                    batches[batch_num].add_block(gs3, gr3)
                     
-                    batches[batch_num].add_block(gx_pre, gy_pre, gz_reph)
-                    batches[batch_num].add_block(delay1)
-                    batches[batch_num].add_block(gz_spoil)
-                    batches[batch_num].add_block(rf180, gz180)
-                    batches[batch_num].add_block(gz_spoil)
-                    batches[batch_num].add_block(delay2)
-                    batches[batch_num].add_block(gx, adc)
-                    assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
-                    n_rd_points = n_rd_points + self.nPoints[0]
-                    
-                    gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=phase_areas[s], duration=self.DephTime*2)
-                    if self.EnableGrad[1] == 0:
-                        gy_pre.amplitude = 0
-                    
-                    batches[batch_num].add_block(gy_pre, gz_spoil)
+                    for k_echo in range(n_echo):
+
+                        if k_ex > 0:
+                            phase_area = phase_areas[k_echo, k_ex - 1]
+                        else:
+                            phase_area = 0.0  # 0.0 and not 0 because -phase_area should successfully result in negative zero
+
+                        gp_pre = pp.make_trapezoid(
+                            channel="y",
+                            system=self.system,
+                            area=phase_area,
+                            duration=t_sp,
+                            rise_time=dG,
+                        )
+                        gp_rew = pp.make_trapezoid(
+                            channel="y",
+                            system=self.system,
+                            area=-phase_area,
+                            duration=t_sp,
+                            rise_time=dG,
+                        )
+                        if self.EnableGrad[1] == 0:
+                            gp_pre.amplitude = 0
+                            gp_rew.amplitude = 0
+                        # rf_ref.phase_offset = rf_ref_offset[k_echo]
+                        batches[batch_num].add_block(gs4, rf_ref)
+                        batches[batch_num].add_block(gs5, gr5, gp_pre)
+                        if k_ex > 0:
+                            batches[batch_num].add_block(gr6, adc)
+                            assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
+                            n_rd_points = n_rd_points + self.nPoints[0]
+                        else:
+                            batches[batch_num].add_block(gr6)
+
+                        batches[batch_num].add_block(gs7, gr7, gp_rew)
+
+                    batches[batch_num].add_block(gs4)
+                    batches[batch_num].add_block(gs5)
                     batches[batch_num].add_block(delay_TR)
-                    
-                    
 
             (
                 ok,
@@ -498,33 +672,30 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
                 else:
                     print("Timing check failed. Error listing follows:")
                     [print(e) for e in error_report]
-                print(batches[batch_num].test_report())
+                #print(batches[batch_num].test_report())
                 batches[batch_num].plot()
-                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
+                # k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
 
-                plt.figure(10)
-                plt.plot(k_traj[0],k_traj[1],linewidth=1)
-                plt.plot(k_traj_adc[0],k_traj_adc[1],'.', markersize=1.4)
-                plt.axis("equal")
-                plt.title("k-space trajectory (kx/ky)")
+                # plt.figure(10)
+                # plt.plot(k_traj[0],k_traj[1],linewidth=1)
+                # plt.plot(k_traj_adc[0],k_traj_adc[1],'.', markersize=1.4)
+                # plt.axis("equal")
+                # plt.title("k-space trajectory (kx/ky)")
 
-                plt.figure(11)
-                plt.plot(t_adc, k_traj_adc.T, linewidth=1)
-                plt.xlabel("Time of acqusition (s)")
-                plt.ylabel("Phase")
+                # plt.figure(11)
+                # plt.plot(t_adc, k_traj_adc.T, linewidth=1)
+                # plt.xlabel("Time of acqusition (s)")
+                # plt.ylabel("Phase")
                 
-                plt.figure(12)
-                t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
-                plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
-                plt.axis("equal")
-                plt.colorbar(label='Normalized Time')  # 添加颜色条
-                plt.title("k-space trajectory (kx/ky) with Gradient")
-                plt.show()
+                # plt.figure(12)
+                # t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
+                # plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
+                # plt.axis("equal")
+                # plt.colorbar(label='Normalized Time')  # 添加颜色条
+                # plt.title("k-space trajectory (kx/ky) with Gradient")
+                # plt.show()
 
-
-
-
-            batches[batch_num].set_definition(key="Name", value="se")
+            batches[batch_num].set_definition(key="Name", value="tse")
             batches[batch_num].set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(batch_num + ".seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
@@ -638,10 +809,9 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         if self.mode == 'Standalone':
             self.plotResults()
         return self.output
- 
     
 if __name__ == '__main__':
-    seq = SEMultisliceDebugPSEQ()
+    seq = TSEMultisliceDebugPSEQ()
     seq.sequenceAtributes()
     seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
