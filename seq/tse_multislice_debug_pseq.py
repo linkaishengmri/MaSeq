@@ -95,10 +95,10 @@ class TSEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
                           tip="Gradient spoiling for slice.")
-        self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 0], field='OTH',
+        self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 1], field='OTH',
                           tip="Enable gradients")
-        self.addParameter(key='maxRFP90', string='Max RF Sinc(uT)', val=27, field='OTH')
-        self.addParameter(key='maxRFP180', string='Max RF Sinc(uT)', val=27, field='OTH')
+        self.addParameter(key='maxRFP90', string='Max RF90 Sinc(uT)', val=26, field='OTH')
+        self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=37, field='OTH')
         
         
 
@@ -154,7 +154,7 @@ class TSEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         # assert rfReTime_us in hw.max_sinc_rf_arr_p180, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
         
         max_rf_Hz = self.maxRFP90 * 1e-6 * hw.gammaB
-        rf_ref_correction_coeff = 0.5 * self.maxRFP90 / self.maxRFP180
+        rf_ref_correction_coeff = 1 * self.maxRFP90 / self.maxRFP180
         
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
@@ -762,7 +762,7 @@ class TSEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
         fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
-        hw.larmorFreq=fitedLarmor
+        # hw.larmorFreq=fitedLarmor
         # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
         fwhm=getFHWM(spectrum, fVector, bw)
         dB0=fwhm*1e6/hw.larmorFreq
@@ -813,7 +813,7 @@ class TSEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultisliceDebugPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

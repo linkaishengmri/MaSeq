@@ -65,7 +65,7 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='se', val='se')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35592, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35573, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
@@ -90,8 +90,8 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Slice gradient compensation factor. This value is used to adjust the slice selection gradient amplitude.")
         self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 1], field='OTH',
                           tip="Enable gradients")
-        self.addParameter(key='maxRFP90', string='Max RF Sinc(uT)', val=27, field='OTH')
-        self.addParameter(key='maxRFP180', string='Max RF Sinc(uT)', val=27, field='OTH')
+        self.addParameter(key='maxRFP90', string='Max RF90 Sinc(uT)', val=20, field='OTH')
+        self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=20, field='OTH')
         
     def sequenceInfo(self):
         print("Pulseq Reader")
@@ -145,7 +145,7 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         # assert rfReTime_us in hw.max_sinc_rf_arr_p180, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
         
         max_rf_Hz = self.maxRFP90 * 1e-6 * hw.gammaB
-        rf_ref_correction_coeff = 0.5 * self.maxRFP90 / self.maxRFP180
+        rf_ref_correction_coeff = 1 * self.maxRFP90 / self.maxRFP180
         
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
@@ -276,7 +276,7 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         gz_reph = pp.make_trapezoid(channel='z', system=self.system, area=-gz90.area * self.sliceGradComp, duration=DepTime * 2)
         gx_pre = pp.make_trapezoid(channel='x', system=self.system, area=gx.area / 2, duration=DepTime * 2)
         gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=phase_areas[-1], duration=DepTime * 2)
-        gz_spoil = pp.make_trapezoid(channel='z', system=self.system, area=gz90.area * 1, duration=DepTime)
+        gz_spoil = pp.make_trapezoid(channel='z', system=self.system, area=gz90.area * .5, duration=DepTime)
 
         delay1 = tau - pp.calc_duration(rf90) / 2 - pp.calc_duration(gx_pre)
         delay1 -= pp.calc_duration(gz_spoil) - pp.calc_duration(rf180) / 2
@@ -591,7 +591,7 @@ class SEMultisliceDebugPSEQ(blankSeq.MRIBLANKSEQ):
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
         fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
-        hw.larmorFreq=fitedLarmor
+        #hw.larmorFreq=fitedLarmor
         # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
         fwhm=getFHWM(spectrum, fVector, bw)
         dB0=fwhm*1e6/hw.larmorFreq
