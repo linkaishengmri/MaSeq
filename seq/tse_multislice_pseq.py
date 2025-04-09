@@ -33,7 +33,8 @@ import experiment_multifreq as ex
 import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
-
+# 8246716884 /122.88 = 67,111,953 us
+# 9465307104
 class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(TSEMultislicePSEQ, self).__init__()
@@ -71,14 +72,14 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=300.0, units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=400.0, units=units.ms, field='SEQ')
         
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[16, 16, 3], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
@@ -499,7 +500,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                 else:
                     encoding_ok = True
                     # print("Sequence waveforms loaded successfully")
-                if self.plotSeq:
+                if self.plotSeq and not self.demo:
                     self.expt.plot_sequence()
 
                 # If not plotting the sequence, start scanning
@@ -963,7 +964,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
