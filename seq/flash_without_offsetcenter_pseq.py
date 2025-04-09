@@ -63,8 +63,8 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='flash', val='flash')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35645, units=units.MHz, field='IM')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=30, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33320, units=units.MHz, field='IM')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoTime', string='Echo time (ms)', val=8.0, units=units.ms, field='SEQ')

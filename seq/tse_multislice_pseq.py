@@ -66,7 +66,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35577, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33307, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
@@ -81,19 +81,19 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
         self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=16.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=16.0, units=units.ms, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=15.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=15.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='fsp_r', string='Readout Spoiling', val=2, field='OTH',
+        self.addParameter(key='fsp_r', string='Readout Spoiling', val=1, field='OTH',
                           tip="Gradient spoiling for readout.")
-        self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
+        self.addParameter(key='fsp_s', string='Slice Spoiling', val=2, field='OTH',
                           tip="Gradient spoiling for slice.")
         
 
@@ -626,6 +626,9 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                         batches[batch_num].add_block(gs4, rf_ref)
                         batches[batch_num].add_block(gs5, gr5, gp_pre)
                         if k_ex > 0:
+                            adc.freq_offset = gr6.waveform.max() * self.dfov[0] 
+                            adc.phase_offset = adc.phase_offset + 2 * np.pi * pe_order[k_echo, k_ex-1] * self.dfov[1] / self.fov[1]
+                        
                             batches[batch_num].add_block(gr6, adc)
                             assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
                             n_rd_points = n_rd_points + self.nPoints[0]
@@ -960,7 +963,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
