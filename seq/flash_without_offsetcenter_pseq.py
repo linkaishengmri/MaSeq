@@ -72,9 +72,9 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
         
-        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[1.0, 2.0, 3.0], units=units.mm, field='IM',
+        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[16, 16, 3], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=0, field='SEQ')
@@ -139,7 +139,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             use_multi_freq = True,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=False,
+            use_grad_preemphasis=True,
             grad_preemphasis_coeff={
                         'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]), 
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
@@ -433,9 +433,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
                             delay=gx.rise_time,
                             phase_offset=rand_phase, # set phase offset
                         )
-                        # adc.freq_offset=rf.freq_offset
-                        adc.freq_offset = gx.amplitude * self.dfov[0] 
-                        adc.phase_offset = 2 * np.pi * self.dfov[1] / self.fov[1]
+                        adc.freq_offset=rf.freq_offset
                         if Cy >= 0:  # Negative index -- dummy scans
                             batches[batch_num].add_block(gx, adc)
                         else:
@@ -750,7 +748,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = FLASHPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

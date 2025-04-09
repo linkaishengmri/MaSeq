@@ -72,6 +72,7 @@ class PseqInterpreter(PSInterpreter):
         self._use_multi_freq = use_multi_freq
         self._add_rx_points = add_rx_points 
         self._freq_offset = {}
+        self._adc_freq_offset = {}
          # Redefine var_name
         self._var_names = ('tx0', 'tx1', 'grad_vx', 'grad_vy', 'grad_vz', 'grad_vz2',
          'rx0_en', 'rx1_en', 'rx_gate' ,'tx_gate')
@@ -307,8 +308,6 @@ class PseqInterpreter(PSInterpreter):
                 lofreq_start_time = self._tx_times[tx_id][0] - self._tx_warmup / 2 
                 out_dict['lo'+tx_ch_name[2]+'_freq_offset'] = (np.array([lofreq_start_time]),np.array([self._freq_offset[tx_id]]))
                 out_dict['lo'+tx_ch_name[2]+'_rst'] = (np.array([lofreq_start_time, lofreq_start_time+1/122.88]),np.array([1, 0]))
-                
-                
 
 
         # Gradient updates
@@ -337,7 +336,10 @@ class PseqInterpreter(PSInterpreter):
             rx_name = rx_ch_name[0:3]
             self._rx_phase_dict[rx_name] = np.concatenate((self._rx_phase_dict[rx_name], np.array([np.exp(1j * rx_event['phase'])])))
             # duration = max(duration, rx_end)
-
+            if self._use_multi_freq:
+                out_dict['lo'+rx_ch_name[2]+'_freq_offset'] = (np.array([rx_add_points_start]),np.array([self._adc_freq_offset[rx_id]]))
+                out_dict['lo'+rx_ch_name[2]+'_rst'] = (np.array([rx_add_points_start, rx_add_points_start+1/122.88]),np.array([1, 0]))
+                
         # Return durations for each PR and leading edge values
         return (out_dict, duration, int(readout_num))
     #endregion
@@ -462,6 +464,8 @@ class PseqInterpreter(PSInterpreter):
         if self._use_multi_freq:
             for rf_id, rf in self._rf_events.items():
                 self._freq_offset[rf_id] = rf['freq'] * 1e-6
+            for adc_id, adc in self._adc_events.items():
+                self._adc_freq_offset[adc_id] = adc['freq'] * 1e-6
                 
         else:
             # Check that RF/ADC (TX/RX) only have one frequency offset -- can't be set within one file.

@@ -885,6 +885,24 @@ class MRIBLANKSEQ:
             yData.append(dataStep[1])
             legend.append('rx0_en')
 
+            # dds0 freq offset
+            x = self.flo_dict['lo0_freq_offset'][0]
+            y = self.flo_dict['lo0_freq_offset'][1]
+            data = [x, y]
+            dataStep = getStepData(data)
+            xData.append(dataStep[0] * 1e-3)
+            yData.append(dataStep[1] * 1e3)
+            legend.append('lo0_freq_offset(kHz)')
+
+            # dds0 reset
+            x = self.flo_dict['lo0_rst'][0]
+            y = self.flo_dict['lo0_rst'][1]
+            data = [x, y]
+            dataStep = getStepData(data)
+            xData.append(dataStep[0] * 1e-3)
+            yData.append(dataStep[1])
+            legend.append('lo0_rst')
+
             # rx1
             x = self.flo_dict['rx1'][0]
             y = self.flo_dict['rx1'][1]
@@ -957,6 +975,7 @@ class MRIBLANKSEQ:
                     continue
             plotDigital = [xData, yData, legend, 'Digital']
 
+            
             outputs = [plotTx, plotGrad, plotRx, plotDigital]
 
         if standalone:
@@ -973,7 +992,8 @@ class MRIBLANKSEQ:
                 plt.xlabel('Time (ms)')
                 plt.ylabel('Amplitude (a.u.)')
                 plot += 1
-
+                # show legend in subplot
+                plt.legend(loc='upper right')
             plt.tight_layout()
             plt.show()
 
