@@ -30,7 +30,8 @@ class PseqInterpreter(PSInterpreter):
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
                         'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
-                 },):
+                 },
+                 use_fir_decimation = False,):
         """
         Create PSInterpreter object for FLOCRA with system parameters.
 
@@ -55,6 +56,18 @@ class PseqInterpreter(PSInterpreter):
             tx_ch (int): Default 0 -- Channel index: either 0 or 1
             rx_ch (int): Default 0 -- RX channel index: either 0 or 1. 
             grad_eff (list): Default [0.4113, 0.9094,1.0000] -- Gradient coefficient of efficiency
+            use_multi_freq (bool): Default False -- Use multi frequency offset for RF and ADC events
+            add_rx_points (int): Default 0 -- Number of points to add to the beginning of the RX data
+            use_grad_preemphasis (bool): Default False -- Use gradient pre-emphasis
+            grad_preemphasis_coeff (dict): Default None -- Gradient pre-emphasis coefficients
+                {'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                'yy':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                }
+            use_fir_decimation (bool): Default False -- Use FIR decimation for RX data
 
         """
         super().__init__( rf_center=rf_center, rf_amp_max=rf_amp_max, grad_max=grad_max,
@@ -81,6 +94,7 @@ class PseqInterpreter(PSInterpreter):
             self._var_names = self._var_names + ('lo0_freq_offset', 'lo1_freq_offset', 'lo0_rst', 'lo1_rst')
         self._use_grad_preemphasis = use_grad_preemphasis
         self._grad_preemphasis_coeff = grad_preemphasis_coeff
+        self._fir_decimation_rate = 3 if use_fir_decimation else 1
     # Encode all blocks
     def _stream_all_blocks(self):
         """
@@ -328,9 +342,9 @@ class PseqInterpreter(PSInterpreter):
         if rx_id != 0:
             rx_event = self._adc_events[rx_id]
             rx_start = rx_event['delay']
-            rx_end = rx_start + rx_event['num'] * self._rx_t
+            rx_end = rx_start + rx_event['num'] * self._fir_decimation_rate * self._rx_t
             rx_add_points_start = rx_start - self._add_rx_points * self._rx_t
-            readout_num += rx_event['num']
+            readout_num += (rx_event['num'] * self._fir_decimation_rate)
             out_dict[rx_ch_name] = (np.array([rx_add_points_start, rx_end]), np.array([1, 0]))
             
             rx_name = rx_ch_name[0:3]
@@ -497,7 +511,7 @@ class PseqInterpreter(PSInterpreter):
             self._error_if(adc['dwell']/1000 != dwell, f"Dwell time of ADC event {adc_id} ({adc['dwell']}) doesn't match that of ADC event {base_id} ({dwell})")
         if dwell is not None:
             self._rx_div = np.round(dwell / self._clk_t).astype(int)
-            self._rx_t = self._clk_t * self._rx_div
+            self._rx_t = self._clk_t * self._rx_div / self._fir_decimation_rate
             self._warning_if(self._rx_div * self._clk_t != dwell,
                 f'Dwell time ({dwell}) rounded to {self._rx_t}, multiple of clk_t ({self._clk_t})')
 
