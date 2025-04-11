@@ -79,17 +79,17 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[16, 16, 3], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.3333333333333333, units=units.kHz, field='IM',
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=32, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
         self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=18.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=18.0, units=units.ms, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=15.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=15.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=1, field='OTH',
@@ -98,7 +98,13 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for slice.")
         
 
-     
+    def sequenceInfo(self):
+        print("Pulseq Reader")
+        print("Author: PhD. J.M. Algarín")
+        print("Contact: josalggui@i3m.upv.es")
+        print("mriLab @ i3M, CSIC, Spain")
+        print("Run a list of .seq files\n")
+        
 
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
@@ -165,8 +171,8 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
                         'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
-                 },
-            use_fir_decimation = (self.bandwidth < 30.007326007326007e3), # 30kHz
+                 }
+
         )
         
         '''
@@ -470,15 +476,14 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 
             # Initialize a list to hold oversampled data
             data_over = []
-            real_bandwidth = bandwidth * self.flo_interpreter._fir_decimation_rate 
-            
+
             # Iterate through each batch of waveforms
             for seq_num in waveforms.keys():
                 # Initialize the experiment if not in demo mode
                 if not self.demo:
                     self.expt = ex.ExperimentMultiFreq(
                         lo_freq=frequency,  # Larmor frequency in MHz
-                        rx_t=1 / real_bandwidth,  # Sampling time in us
+                        rx_t=1 / bandwidth,  # Sampling time in us
                         init_gpa=False,  # Whether to initialize GPA board (False for now)
                         gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
                         auto_leds=True,  # Automatic control of LEDs
@@ -503,7 +508,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                     for scan in range(self.nScans):
                         print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{1} running...")
                         acquired_points = 0
-                        expected_points = n_readouts[seq_num] * self.flo_interpreter._fir_decimation_rate * hw.oversamplingFactor  # Expected number of points
+                        expected_points = n_readouts[seq_num] * hw.oversamplingFactor  # Expected number of points
 
                         # Continue acquiring points until we reach the expected number
                         while acquired_points != expected_points:
@@ -724,17 +729,10 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['resolution'] = resolution
 
         # Get data
-        data_full_pre = self.mapVals['data_full']
+        data_full = self.mapVals['data_full']
         nRD, nPH, nSL = self.nPoints
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = self.mapVals['n_batches']
-
-        # fir decimator
-        if self.flo_interpreter._fir_decimation_rate > 1:
-            data_waiting_for_fir = np.reshape(data_full_pre, newshape=(-1, self.flo_interpreter._fir_decimation_rate * nRD))
-            data_full = self.flo_interpreter.fir_decimator(input_matrix=data_waiting_for_fir, decimation_rate=3)
-        else:
-            data_full = data_full_pre
 
         # Reorganize data_full
         data_prov = np.zeros([self.nScans, nRD * nPH * nSL], dtype=complex)
@@ -966,7 +964,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultislicePSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

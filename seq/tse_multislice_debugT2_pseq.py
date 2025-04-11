@@ -33,11 +33,10 @@ import experiment_multifreq as ex
 import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
-# 8246716884 /122.88 = 67,111,953 us
-# 9465307104
-class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
+
+class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(TSEMultislicePSEQ, self).__init__()
+        super(TSEMultisliceDebugT2PSEQ, self).__init__()
         # Input the parameters
         self.output = None
         self.expt = None
@@ -67,19 +66,19 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33307, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35577, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=400.0, units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000.0, units=units.ms, field='SEQ')
         
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 8, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.3333333333333333, units=units.kHz, field='IM',
@@ -87,18 +86,29 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
-        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
-        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=18.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=18.0, units=units.ms, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
+        self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=20.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=1, field='OTH',
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=2, field='OTH',
                           tip="Gradient spoiling for slice.")
+        self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 1], field='OTH',
+                          tip="Enable gradients")
+        self.addParameter(key='maxRFP90', string='Max RF90 Sinc(uT)', val=26, field='OTH')
+        self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=37, field='OTH')
+        
         
 
-     
+    def sequenceInfo(self):
+        print("Pulseq Reader")
+        print("Author: PhD. J.M. Algarín")
+        print("Contact: josalggui@i3m.upv.es")
+        print("mriLab @ i3M, CSIC, Spain")
+        print("Run a list of .seq files\n")
+        
 
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
@@ -140,11 +150,11 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
         rfExTime_us = int(np.round(self.rfSincExTime * 1e6))
         rfReTime_us = int(np.round(self.rfSincReTime * 1e6))
-        assert rfExTime_us in hw.max_sinc_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
-        assert rfReTime_us in hw.max_sinc_rf_arr_p180, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
+        # assert rfExTime_us in hw.max_sinc_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
+        # assert rfReTime_us in hw.max_sinc_rf_arr_p180, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
         
-        max_rf_Hz = hw.max_sinc_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
-        rf_ref_correction_coeff = 1 * hw.max_sinc_rf_arr[rfExTime_us] / hw.max_sinc_rf_arr_p180[rfReTime_us]
+        max_rf_Hz = self.maxRFP90 * 1e-6 * hw.gammaB
+        rf_ref_correction_coeff = 1 * self.maxRFP90 / self.maxRFP180
         
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
@@ -573,7 +583,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             n_rd_points = 0
             rf_ex_cycle = np.tile(np.array(self.phaseCycleEx), int(np.ceil((n_ex+1) / len(self.phaseCycleEx)))) / 180 * np.pi
 
-            for k_ex in range(n_ex + 1):
+            for k_ex in range(1, n_ex + 1):
                     
                 for s in range(n_slices):
                     rf_ex.freq_offset = (
@@ -593,6 +603,21 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                     #     0 
                     #     - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     # )
+
+                    if self.EnableGrad[0] == 0:
+                        gr3.amplitude = 0
+                        gr5.waveform = np.zeros_like(gr5.waveform)
+                        gr6.waveform = np.zeros_like(gr6.waveform)
+                        gr7.waveform = np.zeros_like(gr7.waveform)
+
+                    if self.EnableGrad[2] == 0:
+                        gs1.waveform = np.zeros_like(gs1.waveform)
+                        gs2.waveform = np.zeros_like(gs2.waveform)
+                        gs3.waveform = np.zeros_like(gs3.waveform)
+                        gs4.waveform = np.zeros_like(gs4.waveform)
+                        gs5.waveform = np.zeros_like(gs5.waveform)
+                        gs7.waveform = np.zeros_like(gs7.waveform)
+
                     batches[batch_num].add_block(gs1)
                     batches[batch_num].add_block(gs2, rf_ex)
                     batches[batch_num].add_block(gs3, gr3)
@@ -618,6 +643,9 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                             duration=t_sp,
                             rise_time=dG,
                         )
+                        if self.EnableGrad[1] == 0:
+                            gp_pre.amplitude = 0
+                            gp_rew.amplitude = 0
                         # rf_ref.phase_offset = rf_ref_offset[k_echo]
                         batches[batch_num].add_block(gs4, rf_ref)
                         batches[batch_num].add_block(gs5, gr5, gp_pre)
@@ -648,28 +676,28 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                 else:
                     print("Timing check failed. Error listing follows:")
                     [print(e) for e in error_report]
-                print(batches[batch_num].test_report())
+                #print(batches[batch_num].test_report())
                 batches[batch_num].plot()
-                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
+                # k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
 
-                plt.figure(10)
-                plt.plot(k_traj[0],k_traj[1],linewidth=1)
-                plt.plot(k_traj_adc[0],k_traj_adc[1],'.', markersize=1.4)
-                plt.axis("equal")
-                plt.title("k-space trajectory (kx/ky)")
+                # plt.figure(10)
+                # plt.plot(k_traj[0],k_traj[1],linewidth=1)
+                # plt.plot(k_traj_adc[0],k_traj_adc[1],'.', markersize=1.4)
+                # plt.axis("equal")
+                # plt.title("k-space trajectory (kx/ky)")
 
-                plt.figure(11)
-                plt.plot(t_adc, k_traj_adc.T, linewidth=1)
-                plt.xlabel("Time of acqusition (s)")
-                plt.ylabel("Phase")
+                # plt.figure(11)
+                # plt.plot(t_adc, k_traj_adc.T, linewidth=1)
+                # plt.xlabel("Time of acqusition (s)")
+                # plt.ylabel("Phase")
                 
-                plt.figure(12)
-                t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
-                plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
-                plt.axis("equal")
-                plt.colorbar(label='Normalized Time')  # 添加颜色条
-                plt.title("k-space trajectory (kx/ky) with Gradient")
-                plt.show()
+                # plt.figure(12)
+                # t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
+                # plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
+                # plt.axis("equal")
+                # plt.colorbar(label='Normalized Time')  # 添加颜色条
+                # plt.title("k-space trajectory (kx/ky) with Gradient")
+                # plt.show()
 
             batches[batch_num].set_definition(key="Name", value="tse")
             batches[batch_num].set_definition(key="FOV", value=self.fov)
@@ -716,14 +744,22 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 
         
     def sequenceAnalysis(self, mode=None):
-        self.mode = mode
-        
-        #self.axesOrientation = [0,1,2] # for ssfp
-        self.unlock_orientation = 0 # for ssfp
-        resolution = self.fov / self.nPoints
-        self.mapVals['resolution'] = resolution
+        self.mapVals['deadTime'] = 0
+        def getFHWM(s,f_vector,bw):
+            target = np.max(s) / 2
+            p0 = np.argmax(s)
+            f0 = f_vector[p0]
+            s1 = np.abs(s[0:p0]-target)
+            f1 = f_vector[np.argmin(s1)]
+            s2 = np.abs(s[p0::]-target)
+            f2 = f_vector[np.argmin(s2)+p0]
+            return f2-f1
 
-        # Get data
+        self.mode = mode
+        # Signal and spectrum from 'fir' and decimation
+        # signal = self.mapVals['data_full']
+
+         # Get data
         data_full_pre = self.mapVals['data_full']
         nRD, nPH, nSL = self.nPoints
         nRD = nRD + 2 * hw.addRdPoints
@@ -735,238 +771,68 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             data_full = self.flo_interpreter.fir_decimator(input_matrix=data_waiting_for_fir, decimation_rate=3)
         else:
             data_full = data_full_pre
+        signal = np.reshape(data_full,newshape=(-1) )
 
-        # Reorganize data_full
-        data_prov = np.zeros([self.nScans, nRD * nPH * nSL], dtype=complex)
-        if n_batches > 1:
-            n_rds = self.mapVals['n_readouts']
-            data_full_a = data_full[0:sum(n_rds[0:-1]) * self.nScans]
-            data_full_b = data_full[sum(n_rds[0:-1]) * self.nScans:]
-            data_full_a = np.reshape(data_full_a, newshape=(n_batches - 1, self.nScans, -1, nRD))
-            data_full_b = np.reshape(data_full_b, newshape=(1, self.nScans, -1, nRD))
-            for scan in range(self.nScans):
-                data_scan_a = np.reshape(data_full_a[:, scan, :, :], -1)
-                data_scan_b = np.reshape(data_full_b[:, scan, :, :], -1)
-                data_prov[scan, :] = np.concatenate((data_scan_a, data_scan_b), axis=0)
-        else:
-            data_full = np.reshape(data_full, (1, self.nScans, -1, nRD))
-            for scan in range(self.nScans):
-                data_prov[scan, :] = np.reshape(data_full[:, scan, :, :], -1)
-        
-        # [TODO]: Add Rx phase here
-        expiangle = self.flo_interpreter.get_rx_phase_dict()['rx0']
-        raw_data = np.reshape(data_prov, newshape=(1, self.nScans, -1, nRD))
-        for scan in range(self.nScans):
-            for line in range(raw_data.shape[2]):
-                raw_data[0, scan, line, :] = raw_data[0, scan, line, :] * expiangle[line]
-        data_full = np.reshape(raw_data, -1)
-        
-        # Average data
-        data_full = np.reshape(data_full, newshape=(self.nScans, -1))
-        data = np.average(data_full, axis=0)
-        self.mapVals['data'] = data
+        bw = self.mapVals['bw_MHz']*1e3 # kHz
+        nPoints = self.mapVals['nPoints'][0] * self.mapVals['nPoints'][1] * self.mapVals['nPoints'][2]
+        deadTime = self.mapVals['deadTime']*1e-3 # ms
+        rfSincExTime = self.mapVals['rfSincExTime']*1e-3 # ms
+        tVector = np.linspace(rfSincExTime/2 + deadTime + 0.5/bw, rfSincExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
+        fVector = np.linspace(-bw/2, bw/2, nPoints)
+        spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
+        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
+        # hw.larmorFreq=fitedLarmor
+        # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
+        fwhm=getFHWM(spectrum, fVector, bw)
+        dB0=fwhm*1e6/hw.larmorFreq
 
-        # slice_idx = self.mapVals['sliceIdx']
-        n_ex = int(np.floor(self.nPoints[1] / self.etl))
-        # data_arrange_slice = np.zeros(shape=(nSL, n_ex, self.etl, nRD), dtype=complex)
-        data_shape = np.reshape(data, newshape=(n_ex, nSL, self.etl, nRD))
-        
-        kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
-        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq, shape=(nSL, nPH, nRD))
-        data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
+        # for sequence in self.sequenceList.values():
+        #     if 'larmorFreq' in sequence.mapVals:
+        #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
+        self.mapVals['larmorFreq'] = hw.larmorFreq
 
-        # for s_i in range(nSL):
-        #     for ex_i in range(n_ex):
-        #         data_arrange_slice[slice_idx[s_i], ex_i, :, :] = data_shape[ex_i, s_i, :, :]
+        # Get the central frequency
+        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
+        print('FHWM: %1.5f kHz' % fwhm)
+        print('dB0/B0: %1.5f ppm' % dB0)
 
-        # # Generate different k-space data
-        # data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
+        self.mapVals['signalVStime'] = [tVector, signal]
+        self.mapVals['spectrum'] = [fVector, spectrum]
 
-    
-        # chNum = 1 
-        # kspace_single_slice = np.zeros([nSL, nPH, nRD], dtype=complex)
-        # for s_i in range(nSL):
-        #     data_ind = np.reshape(data_ind[0, s_i, :, :], newshape=(chNum, nPH, nRD))
-        #     kspace_single_slice[s_i, : ,:] = sort_data_implicit(kdata=data_ind, seq=self.lastseq, shape=(1, nPH, nRD)) 
-
-        # data_ind = np.reshape(kspace_single_slice, newshape=(1, nSL,nPH, nRD))
-        self.mapVals['kSpace'] = data_ind
-
-        # plot #0 slice: #####################################
-        # first_slice_kspace = np.reshape(data_ind[0, 0, :, :], newshape=(nPH, nRD))
-        # plot_nd(first_slice_kspace, vmax=10)
-        # plt.title('K-space')
-        ######################################################
-
-        
-        # Get images
-        image_ind = np.zeros_like(data_ind)
-        im = ifft_2d(data_ind[0])
-        image_ind[0] = im
-
-        # for echo in range(1):
-        #     image_ind[echo] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[echo])))
-        self.mapVals['iSpace'] = image_ind
-        
-        # Prepare data to plot (plot central slice)
-        axes_dict = {'x': 0, 'y': 1, 'z': 2}
-        axes_keys = list(axes_dict.keys())
-        axes_vals = list(axes_dict.values())
-        axes_str = ['', '', '']
-        n = 0
-        for val in self.axesOrientation:
-            index = axes_vals.index(val)
-            axes_str[n] = axes_keys[index]
-            n += 1
-
-        # Normalize image
-        k_space = np.zeros((nSL, nPH, nRD - 2 * hw.addRdPoints))
-        image = np.zeros(( nSL, nPH, nRD - 2 * hw.addRdPoints))
-
-        
-        n = 0
-        for slice in range(nSL):
-            for echo in range(1):
-                k_space[n, :, :] = np.abs(data_ind[echo, slice, :, :])
-                image[n, :, :] = np.abs(image_ind[echo, slice, :, :])
-                n += 1
-        image = image / np.max(image) * 100
-        # plt.plot(np.real(k_space[0,0,:]))
-        # plt.show()
-        imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-        if not self.unlock_orientation:  # Image orientation
-            pass
-            if self.axesOrientation[2] == 2:  # Sagittal
-                title = "Sagittal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:  # OK
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    k_space = np.flip(k_space, axis=2)
-                    k_space = np.flip(k_space, axis=1)
-                    x_label = "(-Y) A | PHASE | P (+Y)"
-                    y_label = "(-X) I | READOUT | S (+X)"
-                    imageOrientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
-                else:
-                    image = np.transpose(image, (0, 2, 1))
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    k_space = np.transpose(k_space, (0, 2, 1))
-                    k_space = np.flip(k_space, axis=2)
-                    k_space = np.flip(k_space, axis=1)
-                    x_label = "(-Y) A | READOUT | P (+Y)"
-                    y_label = "(-X) I | PHASE | S (+X)"
-                    imageOrientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
-            elif self.axesOrientation[2] == 1:  # Coronal
-                title = "Coronal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2:  # OK
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    image = np.flip(image, axis=0)
-                    k_space = np.flip(k_space, axis=2)
-                    k_space = np.flip(k_space, axis=1)
-                    k_space = np.flip(k_space, axis=0)
-                    x_label = "(+Z) R | PHASE | L (-Z)"
-                    y_label = "(-X) I | READOUT | S (+X)"
-                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
-                else:
-                    image = np.transpose(image, (0, 2, 1))
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    image = np.flip(image, axis=0)
-                    k_space = np.transpose(k_space, (0, 2, 1))
-                    k_space = np.flip(k_space, axis=2)
-                    k_space = np.flip(k_space, axis=1)
-                    k_space = np.flip(k_space, axis=0)
-                    x_label = "(+Z) R | READOUT | L (-Z)"
-                    y_label = "(-X) I | PHASE | S (+X)"
-                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
-            elif self.axesOrientation[2] == 0:  # Transversal
-                title = "Transversal"
-                if self.axesOrientation[0] == 1 and self.axesOrientation[1] == 2:
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    k_space = np.flip(k_space, axis=2)
-                    k_space = np.flip(k_space, axis=1)
-                    x_label = "(+Z) R | PHASE | L (-Z)"
-                    y_label = "(+Y) P | READOUT | A (-Y)"
-                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-                else:  # OK
-                    image = np.transpose(image, (0, 2, 1))
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    k_space = np.transpose(k_space, (0, 2, 1))
-                    k_space = np.flip(k_space, axis=2)
-                    k_space = np.flip(k_space, axis=1)
-                    x_label = "(+Z) R | READOUT | L (-Z)"
-                    y_label = "(+Y) P | PHASE | A (-Y)"
-                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-        else:
-            x_label = "%s axis" % axes_str[1]
-            y_label = "%s axis" % axes_str[0]
-            title = "Image"
-
-        result1 = {'widget': 'image',
-                   'data': image,
-                   'xLabel': x_label,
-                   'yLabel': y_label,
-                   'title': title,
+        # Add time signal to the layout
+        result1 = {'widget': 'curve',
+                   'xData': tVector,
+                   'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
+                   'xLabel': 'Time (ms)',
+                   'yLabel': 'Signal amplitude (mV)',
+                   'title': 'Signal vs time',
+                   'legend': ['abs', 'real', 'imag'],
                    'row': 0,
                    'col': 0}
 
-        result2 = {'widget': 'image',
-                   'data': np.log10(k_space+0.01),
-                   'xLabel': x_label,
-                   'yLabel': y_label,
-                   'title': "k_space",
-                   'row': 0,
-                   'col': 1}
- 
-
-        # Dicom tags
-        image_DICOM = np.transpose(image, (0, 2, 1))
-        slices, rows, columns = image_DICOM.shape
-        self.meta_data["Columns"] = columns
-        self.meta_data["Rows"] = rows
-        self.meta_data["NumberOfSlices"] = slices
-        self.meta_data["NumberOfFrames"] = slices
-        img_full_abs = np.abs(image_DICOM) * (2 ** 15 - 1) / np.amax(np.abs(image_DICOM))
-        img_full_int = np.int16(np.abs(img_full_abs))
-        img_full_int = np.reshape(img_full_int, newshape=(slices, rows, columns))
-        arr = img_full_int
-        self.meta_data["PixelData"] = arr.tobytes()
-        self.meta_data["WindowWidth"] = 26373
-        self.meta_data["WindowCenter"] = 13194
-        self.meta_data["ImageOrientationPatient"] = imageOrientation_dicom
-        resolution = self.mapVals['resolution'] * 1e3
-        self.meta_data["PixelSpacing"] = [resolution[0], resolution[1]]
-        self.meta_data["SliceThickness"] = resolution[2]
-        # Sequence parameters
-        self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
-        self.meta_data["EchoTime"] = self.mapVals['echoSpacing']
-        self.meta_data["FlipAngle"] = [self.mapVals['rfExFA'], self.mapVals['rfReFA']]
-        self.meta_data["NumberOfAverages"] = self.mapVals['nScans']
-        self.meta_data["EchoTrainLength"] = self.mapVals['etl']
-        
-
-        self.meta_data["ScanningSequence"] = 'TSE'
+        # Add frequency spectrum to the layout
+        result2 = {'widget': 'curve',
+                   'xData': fVector,
+                   'yData': [spectrum],
+                   'xLabel': 'Frequency (kHz)',
+                   'yLabel': 'Spectrum amplitude (a.u.)',
+                   'title': 'Spectrum',
+                   'legend': [''],
+                   'row': 1,
+                   'col': 0}
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]
-
-        # save data once self.output is created
         self.saveRawData()
 
-        # Plot result in standalone execution
         if self.mode == 'Standalone':
             self.plotResults()
-
         return self.output
- 
     
 if __name__ == '__main__':
-    seq = TSEMultislicePSEQ()
+    seq = TSEMultisliceDebugT2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

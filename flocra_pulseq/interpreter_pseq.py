@@ -6,6 +6,8 @@ import numpy as np
 import logging # For errors
 from flocra_pulseq.interpreter import PSInterpreter
 import flocra_pulseq.grad_preemphasis_pseq as gpe
+from scipy.signal import firwin, lfilter, decimate
+
 class PseqInterpreter(PSInterpreter):
     
 
@@ -94,6 +96,7 @@ class PseqInterpreter(PSInterpreter):
             self._var_names = self._var_names + ('lo0_freq_offset', 'lo1_freq_offset', 'lo0_rst', 'lo1_rst')
         self._use_grad_preemphasis = use_grad_preemphasis
         self._grad_preemphasis_coeff = grad_preemphasis_coeff
+        self._use_fir_decimation = use_fir_decimation
         self._fir_decimation_rate = 3 if use_fir_decimation else 1
     # Encode all blocks
     def _stream_all_blocks(self):
@@ -530,7 +533,58 @@ class PseqInterpreter(PSInterpreter):
     
     def get_rx_phase_dict(self):
         return self._rx_phase_dict
-    
+
+    def fir_decimator(self, input_matrix, decimation_rate=3):
+        """
+        Process a 256x768 complex matrix by applying an FIR low-pass filter on each row and decimating by the given rate.
+        The filter cutoff frequency is set to 1/3 of the Nyquist frequency.
+
+        Parameters:
+            input_matrix: numpy.ndarray
+                The input complex matrix of shape (256, 768).
+            decimation_rate: int, optional
+                The downsampling factor; default is 3.
+
+        Returns:
+            output_matrix: numpy.ndarray
+                The processed complex matrix of shape (256, 256) after filtering and downsampling.
+        """
+        # Set filter parameters
+        numtaps = 31          # Number of filter taps (order of the FIR filter)
+        cutoff = 1/decimation_rate        # Normalized cutoff frequency; 1 corresponds to the Nyquist frequency
+
+        # Design the FIR low-pass filter using firwin
+        b = firwin(numtaps, cutoff)
+
+        # Determine dimensions of the input matrix
+        num_rows, num_cols = input_matrix.shape
+
+        # Calculate the length after decimation (e.g., 768 / decimation_rate)
+        downsampled_length = num_cols // decimation_rate
+
+        # Initialize the output matrix with the same data type as the input matrix
+        output_matrix = np.zeros((num_rows, downsampled_length), dtype=input_matrix.dtype)
+
+        # Process each row: apply FIR filter and decimate by taking every decimation_rate-th sample
+        # for i in range(num_rows):
+        #     row_data = input_matrix[i, :]
+        #     # Apply the FIR filter to the row data (lfilter works with complex data)
+        #     filtered_row = lfilter(b, 1.0, row_data)
+        #     # Decimate the filtered row by extracting every decimation_rate-th sample
+        #     output_matrix[i, :] = filtered_row[::decimation_rate]
+        
+        # Process each row individually
+        for i in range(num_rows):
+            row_data = input_matrix[i, :]
+            # If the row data is complex, decimate the real and imaginary parts separately.
+            if np.iscomplexobj(row_data):
+                real_decimated = decimate(row_data.real, decimation_rate, ftype='fir', zero_phase=True)
+                imag_decimated = decimate(row_data.imag, decimation_rate, ftype='fir', zero_phase=True)
+                output_matrix[i, :] = real_decimated + 1j * imag_decimated
+            else:
+                output_matrix[i, :] = decimate(row_data, decimation_rate, ftype='fir', zero_phase=True)
+        
+        return output_matrix
 
 
 # Sample usage

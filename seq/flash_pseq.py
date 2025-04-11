@@ -67,7 +67,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=15.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=11.0, units=units.ms, field='SEQ')
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
@@ -176,7 +176,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         '''
 
         bw = self.bandwidth * 1e-6 # MHz
-        bw_ov = bw * 3 if self.bandwidth < 30.007326007326007e3 else bw
+        bw_ov = bw 
         sampling_period = 1 / bw_ov  # us, Dwell time
 
         '''
@@ -299,14 +299,14 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 
             # Initialize a list to hold oversampled data
             data_over = []
-
+            real_bandwidth = bandwidth * self.flo_interpreter._fir_decimation_rate 
             # Iterate through each batch of waveforms
             for seq_num in waveforms.keys():
                 # Initialize the experiment if not in demo mode
                 if not self.demo:
                     self.expt = ex.ExperimentMultiFreq(
                         lo_freq=frequency,  # Larmor frequency in MHz
-                        rx_t=(1 / bandwidth),  # Sampling time in us with fir decimation rate of 3
+                        rx_t=(1 / real_bandwidth),  # Sampling time in us with fir decimation rate of 3
                         init_gpa=False,  # Whether to initialize GPA board (False for now)
                         gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
                         auto_leds=True,  # Automatic control of LEDs
@@ -329,7 +329,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
                     for scan in range(self.nScans):
                         print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{1} running...")
                         acquired_points = 0
-                        expected_points = n_readouts[seq_num] * hw.oversamplingFactor  # Expected number of points
+                        expected_points = n_readouts[seq_num] * self.flo_interpreter._fir_decimation_rate * hw.oversamplingFactor  # Expected number of points
 
                         # Continue acquiring points until we reach the expected number
                         while acquired_points != expected_points:
@@ -525,13 +525,20 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         resolution = self.fov / self.nPoints
         self.mapVals['resolution'] = resolution
 
-        
-
-        # Get data
-        data_full = self.mapVals['data_full']
         nRD, nPH, nSL = self.nPoints
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = self.mapVals['n_batches']
+
+        # Get data
+        data_full_pre = self.mapVals['data_full']
+        
+        # fir decimator
+        if self.flo_interpreter._fir_decimation_rate > 1:
+            data_waiting_for_fir = np.reshape(data_full_pre, newshape=(-1, self.flo_interpreter._fir_decimation_rate * nRD))
+            data_full = self.flo_interpreter.fir_decimator(input_matrix=data_waiting_for_fir, decimation_rate=3)
+        else:
+            data_full = data_full_pre
+        
 
         # Reorganize data_full
         data_prov = np.zeros([self.nScans, nRD * nPH * nSL * self.etl], dtype=complex)
@@ -750,7 +757,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = FLASHPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
