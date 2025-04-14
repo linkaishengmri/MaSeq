@@ -60,9 +60,9 @@ from pypulseq.convert import convert
 #     900:67,
 #     1000:67,
 # }
-class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
+class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(CPMGPSEQ, self).__init__()
+        super(SRT1PSEQ, self).__init__()
         # Input the parameters
         self.output = None
         self.expt = None
@@ -72,8 +72,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.larmorFreq = None 
         self.rfExFA = None
         self.rfReFA = None
-        # self.rfExAmp = None  
-        # self.rfReAmp = None  
+        self.filterWindowSize = None  
         self.rfExTime = None 
         self.rfReTime = None 
         self.echoSpacing = None  
@@ -90,18 +89,31 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.txChannel = None
         self.rxChannel = None
 
+        self.saturationPulseqNum = None
+        self.saturationIntervalDecay = None
+        self.firstInterval = None
+        self.inversionTime = None
+
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35680, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35664, units=units.MHz, field='RF')
+       
+        # SR params:
+        self.addParameter(key='saturationPulseqNum', string='Saturation pulse number', val=10, field='SEQ')
+        self.addParameter(key='saturationIntervalDecay', string='Saturation interval decay', val=0.29, field='SEQ')
+        self.addParameter(key='firstInterval', string='1st saturation interval (ms)', val=100, units=units.ms, field='SEQ')
+        self.addParameter(key='inversionTime', string='Inversion time (ms)', val=1500, units=units.ms, field='SEQ')
+        
+        # CPMG params
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000, units=units.ms, field='SEQ')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=5, field='IM')
-        self.addParameter(key='filterWindowSize', string='Filter Window Size', val=5, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=500, field='SEQ')
+        self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
+        self.addParameter(key='filterWindowSize', string='Filter Window Size', val=10, field='IM')
+        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
@@ -136,7 +148,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         max_rf_Hz = hw.max_cpmg_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
         rf_ref_correction_coeff = 0.5 * hw.max_cpmg_rf_arr[rfExTime_us] / hw.max_cpmg_rf_p180_arr[rfReTime_us]
         self.flo_interpreter = PseqInterpreter(
-            tx_warmup=10,  # Transmit chain warm-up time (us)
+            tx_warmup=1,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
             rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
             grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
@@ -153,8 +165,8 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['rxChName'] = 'rx0'
 
         self.system = pp.Opts(
-            rf_dead_time=10 * 1e-6,  # Dead time between RF pulses (s)
-            rf_ringdown_time= 10 * 1e-6,
+            rf_dead_time=1 * 1e-6,  # Dead time between RF pulses (s)
+            rf_ringdown_time= 0 * 1e-6,
             max_grad=30,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
@@ -211,7 +223,15 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             phase_offset=RealRefphase[0] * np.pi / 180,
             delay=0,
         )
-        
+        # SR seq design:
+        decay_array_time = self.firstInterval * (self.saturationIntervalDecay ** np.arange(self.saturationPulseqNum))
+        decay_array = np.round(decay_array_time*1e6) / 1e6 
+        SR_recovery_delay = self.inversionTime - self.rfExTime - (self.system.rf_dead_time + self.system.rf_ringdown_time)
+        assert np.all(decay_array > 0), f"Error: decay_array contains non-positive values: {decay_array}"
+        assert (SR_recovery_delay > 0), f"Error: SR_recovery_delay is a non-positive value: {SR_recovery_delay}"
+
+
+
         # correct p180:
         rf_ref.signal = rf_ref_correction_coeff * rf_ref.signal 
 
@@ -225,7 +245,10 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
         
-        recovery_time = self.repetitionTime - 0.5*(self.rfExTime+self.echoSpacing) - self.etl * self.echoSpacing
+        recovery_time = np.round((self.repetitionTime - (0.5 * self.rfExTime + self.system.rf_dead_time 
+                      + self.etl * self.echoSpacing + np.sum((decay_array[:-1] + self.rfExTime + self.system.rf_dead_time + self.system.rf_ringdown_time)) + self.inversionTime
+                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6))
+                      / self.system.block_duration_raster) * self.system.block_duration_raster
         # Assertions to check if times are greater than zero
         assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
@@ -249,8 +272,14 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             adc.phase_offset = RealRxphase[scan] * np.pi / 180
             rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
 
+            # SR pulse
+            for SRindex in range(self.saturationPulseqNum-1):
+                seq.add_block(rf_ex)
+                seq.add_block(pp.make_delay(decay_array[SRindex]))
+            seq.add_block(rf_ex)
+            seq.add_block(pp.make_delay(SR_recovery_delay))
+
             # Excitation pulse
-            seq.add_block(pp.make_delay(0.00025))
             seq.add_block(rf_ex)
             seq.add_block(pp.make_delay(delay_te1))
             # Echo train
@@ -272,11 +301,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                 print("Timing check failed. Error listing follows:")
                 [print(e) for e in error_report]   
 
-            seq.plot(show_blocks =True)
+            seq.plot(show_blocks =False)
 
-        seq.set_definition(key="Name", value="cpmg")
-        seq.write("cpmg.seq")
-        self.waveforms, param_dict = self.flo_interpreter.interpret("cpmg.seq")
+        seq.set_definition(key="Name", value="SRT1T2")
+        seq.write("SRT1T2.seq")
+        self.waveforms, param_dict = self.flo_interpreter.interpret("SRT1T2.seq")
          
         larmorFreq = self.mapVals['larmorFreq']
         if not self.demo:
@@ -485,6 +514,8 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                    'row': 1,
                    'col': 0}
 
+        self.mapVals['filtered_signalVStime'] = [filtered_time_vector,filtered_signal]
+
         # create self.out to run in iterative mode
         self.output = [result1, result2]
         self.saveRawData()
@@ -493,25 +524,10 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             self.plotResults()
         return self.output
     
-    def inverseTransformation(self, time_axis, signal_decay):
-        # Inverse transformation of the NMR data
-
-        # To install the required dependencies, use:
-        # pip install numpy==1.26.4
-        # pip install flintpy-nmr --no-deps
-        from flintpy.flintpy import Flint, FlintSignal
-
-        signal = FlintSignal.load_from_data(signal_decay, time_axis, None)
-        flint = Flint(
-            signal, kernel_shape=[100, 1], kernel_name="T2", alpha=1e-1, t1range=[1e-3, 1e4], t2range=None
-        )
-        flint.solve_flint()
-        flint.plot()
-
 if __name__ == '__main__':
-    seq = CPMGPSEQ()
+    seq = SRT1PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
