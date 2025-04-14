@@ -92,13 +92,13 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35680, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33355, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=25.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=50.0, units=units.us, field='RF')
+        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.8, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=5, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=5, field='IM')
         self.addParameter(key='etl', string='Echo train length', val=500, field='SEQ')
@@ -272,7 +272,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                 print("Timing check failed. Error listing follows:")
                 [print(e) for e in error_report]   
 
-            seq.plot(show_blocks =True)
+            seq.plot(show_blocks =False)
 
         seq.set_definition(key="Name", value="cpmg")
         seq.write("cpmg.seq")
@@ -427,8 +427,9 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
             filtered[i] = real_filtered + 1j * imag_filtered
             filtered_time[i] = tVecRes[i, num_taps - 1:] 
         filtered_signal = np.reshape(filtered, newshape=(-1))
-        filtered_time_vector = np.reshape(filtered_time, newshape=(-1))
-        
+        # filtered_time_vector = np.reshape(filtered_time, newshape=(-1))
+        filtered_time_vector = np.arange(0, self.mapVals['etl'] * self.mapVals['echoSpacing'], self.mapVals['echoSpacing'])
+
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
         fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
@@ -452,6 +453,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
+        self.mapVals['FiltersignalVStime'] = [filtered_time_vector, filtered_signal]
 
         # Add time signal to the layout
         result1 = {'widget': 'curve',
@@ -511,7 +513,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
