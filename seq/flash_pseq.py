@@ -67,8 +67,8 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=11.0, units=units.ms, field='SEQ')
-        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=9.0, units=units.ms, field='SEQ')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
         
@@ -78,7 +78,7 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=0, field='SEQ')
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.3333333333333333, units=units.kHz, field='IM',
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=29.767441860465116, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.002, 0.0015], field='SEQ')

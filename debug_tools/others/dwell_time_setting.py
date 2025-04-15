@@ -24,10 +24,15 @@ cnt1 = 0
 
 print("\n-----------------------\n")
 print("利用数学条件(i 可被3整除)简化判断:")
-for i in range(1, 4096):
+for i in range(1, 3000):
     # 0 特殊处理（0 无论如何都是有限小数）
     if i == 0 or i % 3 == 0:
         f = Fraction(25 * i, 3072)
         print(f"{i}/122.88 = {f}  \t  {float(f)} us,\t {1000/float(f)} kHz")
         cnt1 = cnt1 + 1
 print(f"cnt1: {cnt1}, cnt: {cnt}")
+
+
+#availble_dwell_time 
+# 46.875
+# 33.59375  us,   29.767441860465116 kHz

@@ -71,21 +71,21 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
         self.nScans = None  
         self.larmorFreq = None 
         self.rfExFA = None
-        self.rfReFA = None
+        # self.rfReFA = None
         self.filterWindowSize = None  
         self.rfExTime = None 
-        self.rfReTime = None 
-        self.echoSpacing = None  
+        # self.rfReTime = None 
+        # self.echoSpacing = None  
         self.repetitionTime = None  
         self.nPoints = None 
-        self.etl = None  
+        # self.etl = None  
         self.bandwidth = None
         self.acqTime = None  
         self.shimming = None 
         self.Exphase = None 
         self.Refphase = None
         self.Rxphase = None
-        self.RxTimeOffset = None
+        # self.RxTimeOffset = None
         self.txChannel = None
         self.rxChannel = None
 
@@ -93,6 +93,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
         self.saturationIntervalDecay = None
         self.firstInterval = None
         self.inversionTime = None
+        self.deadTime = None
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
@@ -106,21 +107,22 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
         
         # CPMG params
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
-        self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
+        # self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000, units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=25.0, units=units.us, field='RF')
+        # self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=50.0, units=units.us, field='RF')
+        self.addParameter(key='deadTime', string='Dead time (us)', val=500.0, units=units.us, field='RF')
+        # self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=10, field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
+        # self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
         self.addParameter(key='Exphase', string='Ex Phase (deg)', val=[0, 180, 90, 270], tip='Excitation Phase Cycling', field='RF')
-        self.addParameter(key='Refphase', string='Ref Phase (deg)', val=[90, 90, 180, 180], tip='Refocusing Phase Cycling', field='RF')
+        # self.addParameter(key='Refphase', string='Ref Phase (deg)', val=[90, 90, 180, 180], tip='Refocusing Phase Cycling', field='RF')
         self.addParameter(key='Rxphase', string='Rx Phase (deg)', val=[0, 180, 90, 270], tip='Rx Phase Cycling', field='RF')
-        self.addParameter(key='RxTimeOffset', string='Rx Time Offset (ms)', val=0, units=units.ms, field='SEQ')
+        # self.addParameter(key='RxTimeOffset', string='Rx Time Offset (ms)', val=0, units=units.ms, field='SEQ')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 
@@ -141,12 +143,12 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
         rfExTime_us = int(np.round(self.rfExTime * 1e6))
-        rfReTime_us = int(np.round(self.rfReTime * 1e6))
+        # rfReTime_us = int(np.round(self.rfReTime * 1e6))
         assert rfExTime_us in hw.max_cpmg_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
-        assert rfReTime_us in hw.max_cpmg_rf_p180_arr, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
+        # assert rfReTime_us in hw.max_cpmg_rf_p180_arr, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
         
         max_rf_Hz = hw.max_cpmg_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
-        rf_ref_correction_coeff = 0.5 * hw.max_cpmg_rf_arr[rfExTime_us] / hw.max_cpmg_rf_p180_arr[rfReTime_us]
+        # rf_ref_correction_coeff = 0.5 * hw.max_cpmg_rf_arr[rfExTime_us] / hw.max_cpmg_rf_p180_arr[rfReTime_us]
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=1,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
@@ -205,7 +207,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
             print(f'dwell time: {sampling_period} us, readout time: {readout_duration} s')
         
         RealExphase = np.tile(self.Exphase, int(np.ceil(self.nScans / len(self.Exphase))))
-        RealRefphase = np.tile(self.Refphase, int(np.ceil(self.nScans / len(self.Refphase))))
+        # RealRefphase = np.tile(self.Refphase, int(np.ceil(self.nScans / len(self.Refphase))))
         RealRxphase = np.tile(self.Rxphase, int(np.ceil(self.nScans / len(self.Rxphase))))
         
 
@@ -216,13 +218,13 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
             phase_offset=RealExphase[0] * np.pi / 180,
             delay=0,
         )
-        rf_ref = pp.make_block_pulse(
-            flip_angle=self.rfReFA * np.pi / 180,
-            duration=self.rfReTime,
-            system=self.system,
-            phase_offset=RealRefphase[0] * np.pi / 180,
-            delay=0,
-        )
+        # rf_ref = pp.make_block_pulse(
+        #     flip_angle=self.rfReFA * np.pi / 180,
+        #     duration=self.rfReTime,
+        #     system=self.system,
+        #     phase_offset=RealRefphase[0] * np.pi / 180,
+        #     delay=0,
+        # )
         # SR seq design:
         decay_array_time = self.firstInterval * (self.saturationIntervalDecay ** np.arange(self.saturationPulseqNum))
         decay_array = np.round(decay_array_time*1e6) / 1e6 
@@ -233,36 +235,35 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 
 
         # correct p180:
-        rf_ref.signal = rf_ref_correction_coeff * rf_ref.signal 
+        # rf_ref.signal = rf_ref_correction_coeff * rf_ref.signal 
 
         adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration) 
-        delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - (self.system.rf_dead_time+self.system.rf_ringdown_time))
-                              / self.system.block_duration_raster) * self.system.block_duration_raster   
-        delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_ringdown_time)
-                              / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_dead_time) 
-                              / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
-        delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
-        
+        # delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - (self.system.rf_dead_time+self.system.rf_ringdown_time))
+        #                       / self.system.block_duration_raster) * self.system.block_duration_raster   
+        # delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_ringdown_time)
+        #                       / self.system.block_duration_raster) * self.system.block_duration_raster
+        # delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_dead_time) 
+        #                       / self.system.block_duration_raster) * self.system.block_duration_raster
+        # delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
+        # delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
+        dead_time_period = self.deadTime
         recovery_time = np.round((self.repetitionTime - (0.5 * self.rfExTime + self.system.rf_dead_time 
-                      + self.etl * self.echoSpacing + np.sum((decay_array[:-1] + self.rfExTime + self.system.rf_dead_time + self.system.rf_ringdown_time)) + self.inversionTime
-                      + delay_te3_with_offset + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6))
+                      + dead_time_period + np.sum((decay_array[:-1] + self.rfExTime + self.system.rf_dead_time + self.system.rf_ringdown_time)) + self.inversionTime
+                      + 0 + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6))
                       / self.system.block_duration_raster) * self.system.block_duration_raster
         # Assertions to check if times are greater than zero
-        assert delay_te1 > 0, f"Error: delay_te1 is non-positive: {delay_te1}"
         assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
         
-        if self.etl == 1: # for debuging
-            delay_te2 = 10e-6 
-            delay_te3 = 10e-6 
-            delay_te2_with_offset = delay_te2
-            delay_te3_with_offset = delay_te3
-        else:
-            assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
-            assert delay_te3 > 0, f"Error: delay_te3 is non-positive: {delay_te3}"
-            assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
-            assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
+        # if self.etl == 1: # for debuging
+        #     delay_te2 = 10e-6 
+        #     delay_te3 = 10e-6 
+        #     delay_te2_with_offset = delay_te2
+        #     delay_te3_with_offset = delay_te3
+        # else:
+        #     assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
+        #     assert delay_te3 > 0, f"Error: delay_te3 is non-positive: {delay_te3}"
+        #     assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
+        #     assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
         
         acq_points = 0
         seq = pp.Sequence(system=self.system)
@@ -270,7 +271,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
             # Phase Cycling
             rf_ex.phase_offset = RealExphase[scan] * np.pi / 180
             adc.phase_offset = RealRxphase[scan] * np.pi / 180
-            rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
+            # rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
 
             # SR pulse
             for SRindex in range(self.saturationPulseqNum-1):
@@ -281,14 +282,10 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 
             # Excitation pulse
             seq.add_block(rf_ex)
-            seq.add_block(pp.make_delay(delay_te1))
-            # Echo train
-            for echoIndex in range(self.etl):
-                seq.add_block(rf_ref)
-                seq.add_block(pp.make_delay(delay_te2_with_offset))
-                seq.add_block(adc, pp.make_delay(readout_duration_rounded))
-                seq.add_block(pp.make_delay(delay_te3_with_offset))
-                acq_points += self.nPoints
+            seq.add_block(pp.make_delay(dead_time_period))
+            
+            seq.add_block(adc, pp.make_delay(readout_duration_rounded))
+               
             if not scan == self.nScans-1: 
                 seq.add_block(pp.make_delay(recovery_time))
 
@@ -301,11 +298,11 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
                 print("Timing check failed. Error listing follows:")
                 [print(e) for e in error_report]   
 
-            seq.plot(show_blocks =False)
+            seq.plot(show_blocks =True)
 
-        seq.set_definition(key="Name", value="SRT1T2")
-        seq.write("SRT1T2.seq")
-        self.waveforms, param_dict = self.flo_interpreter.interpret("SRT1T2.seq")
+        seq.set_definition(key="Name", value="SRT1")
+        seq.write("SRT1.seq")
+        self.waveforms, param_dict = self.flo_interpreter.interpret("SRT1.seq")
          
         larmorFreq = self.mapVals['larmorFreq']
         if not self.demo:
@@ -341,7 +338,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
             if True:
                 print(f"Scan running...")
                 acquired_points = 0
-                expected_points = self.nPoints * self.etl * self.nScans  # Expected number of points
+                expected_points = self.nPoints * 1 * self.nScans  # Expected number of points
 
                 # Continue acquiring points until we reach the expected number
                 while acquired_points != expected_points:
@@ -353,7 +350,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
                     add_rx_points = self.flo_interpreter.get_add_rx_points()
-                    before_delete = np.reshape(rx_raw_data, newshape=(self.etl * self.nScans, -1))
+                    before_delete = np.reshape(rx_raw_data, newshape=(1 * self.nScans, -1))
                     rxdataremove = before_delete[:, add_rx_points:]
                     rxdata = np.reshape(rxdataremove, newshape=(-1))
                     acquired_points = np.size(rxdata)
@@ -402,7 +399,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 
         self.mode = mode
         # Signal and spectrum from 'fir' and decimation
-
+        self.mapVals['etl'] = 1
 
         # [TODO]: Add Rx phase here
         if True:
@@ -440,7 +437,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
             return tVector
 
         #tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
-        tVector = create_tVector(bw * 1e3, self.mapVals['nPoints'], self.mapVals['echoSpacing'], self.mapVals['etl'])
+        tVector = create_tVector(bw * 1e3, self.mapVals['nPoints'], 1, self.mapVals['etl'])
         tVecRes = np.reshape(tVector, newshape=(-1, self.mapVals['nPoints']))
         
         fir_coefficients = np.ones(self.mapVals['filterWindowSize']) / self.mapVals['filterWindowSize']
@@ -456,15 +453,16 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
             filtered[i] = real_filtered + 1j * imag_filtered
             filtered_time[i] = tVecRes[i, num_taps - 1:] 
         filtered_signal = np.reshape(filtered, newshape=(-1))
-        filtered_time_vector = np.reshape(filtered_time, newshape=(-1))
-        
+        # filtered_time_vector = np.reshape(filtered_time, newshape=(-1))
+        filtered_time_vector = np.array([self.mapVals['inversionTime']])
+
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
         fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
         # hw.larmorFreq=fitedLarmor
         # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        fwhm=getFHWM(spectrum, fVector, bw)
-        dB0=fwhm*1e6/fitedLarmor
+        # fwhm=getFHWM(spectrum, fVector, bw)
+        # dB0=fwhm*1e6/fitedLarmor
 
 
         # t_filtered = tVector[:filtered_signal.shape[0]]
@@ -476,12 +474,12 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 
         # Get the central frequency
         print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        print('FHWM: %1.5f kHz' % fwhm)
-        print('dB0/B0: %1.5f ppm' % dB0)
+        # print('FHWM: %1.5f kHz' % fwhm)
+        # print('dB0/B0: %1.5f ppm' % dB0)
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
-
+        self.mapVals['filtered_signalVStime'] = [filtered_time_vector, filtered_signal]
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,
@@ -527,7 +525,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SRT1PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
