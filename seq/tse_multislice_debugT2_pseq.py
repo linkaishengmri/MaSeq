@@ -66,17 +66,17 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35577, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53683, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000.0, units=units.ms, field='SEQ')
         
-        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
-        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
+        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 2.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
         self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 8, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
@@ -85,7 +85,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
-        self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
+        self.addParameter(key='shimming', string='Shimming', val=[0.0013, 0.0013, 0.0005], field='SEQ')
         self.addParameter(key='etl', string='Echo train length', val=8, field='SEQ')
         self.addParameter(key='effEchoTime', string='Effective echo time (ms)', val=80.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
@@ -97,8 +97,8 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for slice.")
         self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 1], field='OTH',
                           tip="Enable gradients")
-        self.addParameter(key='maxRFP90', string='Max RF90 Sinc(uT)', val=26, field='OTH')
-        self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=37, field='OTH')
+        self.addParameter(key='maxRFP90', string='Max RF90 Sinc(uT)', val=14, field='OTH')
+        self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=19, field='OTH')
         
         
 
@@ -167,14 +167,14 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
             use_multi_freq = True,
             add_rx_points = 0,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=False,
+            use_grad_preemphasis=True,
             grad_preemphasis_coeff={
-                        'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]), 
-                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
-                        'yy':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
-                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
-                        'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
-                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'zz':( (np.array([1.8061, 1.391, 0.2535, -0.0282]) * 1e-2, 
+                            np.array([1567, 17510, 167180, 608533] ))),
+                        'xx':( (np.array([-0.3031, 0.0782, 0.0227, 0.0]) * 1e-2,
+                            np.array([2537, 87749, 986942, 0.1] ))),
+                        'yy':( (np.array([1.7434, 2.0108, 0.4076, -0.1527]) *1e-2,
+                            np.array([2151, 24193, 321545, 989703] ))),
                  },
             use_fir_decimation = (self.bandwidth < 30.007326007326007e3), # 30kHz
         )
@@ -802,27 +802,37 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,
-                   'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
+                   'yData': [np.abs(signal)],
                    'xLabel': 'Time (ms)',
-                   'yLabel': 'Signal amplitude (mV)',
+                   'yLabel': 'Signal amplitude (a.u.)',
                    'title': 'Signal vs time',
-                   'legend': ['abs', 'real', 'imag'],
+                   'legend': ['abs'],
                    'row': 0,
                    'col': 0}
-
-        # Add frequency spectrum to the layout
+        # Add time signal to the layout
         result2 = {'widget': 'curve',
-                   'xData': fVector,
-                   'yData': [spectrum],
-                   'xLabel': 'Frequency (kHz)',
-                   'yLabel': 'Spectrum amplitude (a.u.)',
-                   'title': 'Spectrum',
-                   'legend': [''],
+                   'xData': tVector,
+                   'yData': [np.angle(signal)],
+                   'xLabel': 'Time (ms)',
+                   'yLabel': 'Phase amplitude (rad)',
+                   'title': 'Phase vs time',
+                   'legend': ['Phase'],
                    'row': 1,
                    'col': 0}
 
+        # Add frequency spectrum to the layout
+        result3 = {'widget': 'curve',
+                   'xData': tVector,
+                   'yData': [np.real(signal), np.imag(signal)],
+                   'xLabel': 'Time (ms)',
+                   'yLabel': 'Amplitude',
+                   'title': 'Amplitude vs time',
+                   'legend': ['real', 'imag'],
+                   'row': 2,
+                   'col': 0}
+
         # create self.out to run in iterative mode
-        self.output = [result1, result2]
+        self.output = [result1, result2, result3]
         self.saveRawData()
 
         if self.mode == 'Standalone':

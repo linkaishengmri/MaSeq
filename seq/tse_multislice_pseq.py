@@ -74,7 +74,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=400.0, units=units.ms, field='SEQ')
         
-        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[75, 75], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
@@ -157,14 +157,14 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             use_multi_freq = True,
             add_rx_points = 0,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=False,
+            use_grad_preemphasis=True,
             grad_preemphasis_coeff={
-                        'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]), 
-                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
-                        'yy':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
-                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
-                        'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
-                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'zz':( (np.array([1.8061, 1.391, 0.2535, -0.0282]) * 1e-2, 
+                            np.array([1567, 17510, 167180, 608533] ))),
+                        'xx':( (np.array([-0.3031, 0.0782, 0.0227, 0.0]) * 1e-2,
+                            np.array([2537, 87749, 986942, 0.1] ))),
+                        'yy':( (np.array([1.7434, 2.0108, 0.4076, -0.1527]) *1e-2,
+                            np.array([2151, 24193, 321545, 989703] ))),
                  },
             use_fir_decimation = (self.bandwidth < 30.007326007326007e3), # 30kHz
         )

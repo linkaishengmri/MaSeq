@@ -1,0 +1,84 @@
+import numpy as np
+Central_freq = 10.36e6 #Hz
+gradFactor = [1.0000, 0.9094,0.4113] # (X, Y, Z) in T/m/o.u.
+max_rf = 27 # uT
+maxrfsinc_for_spinecho = 37
+max_sinc_rf_arr={
+    3000: 27,# uT
+}
+max_sinc_rf_arr_p180 = {
+    3000: 39,# uT
+}
+
+max_cpmg_rf = 123 #uT
+
+max_cpmg_rf_arr = {
+    25: 250,
+}
+max_cpmg_rf_p180_arr = {#us:uT
+    50:125,
+}
+# max_cpmg_rf_arr = { #us:uT
+#     20: 365,
+#     30: 296,
+#     50: 224,
+#     100:169,
+#     150:149,
+#     200:138,
+#     250:133,
+#     300:130,
+#     400:126,
+#     500:126,
+#     600:126,
+#     700:126,
+#     800:127,
+#     900:129,
+#     1000:130,
+#     1500:136,
+#     2000:133,
+# }
+# max_cpmg_rf_p180_arr = {#us:uT
+#     40:185,
+#     100:114,
+#     200:86,
+#     300:76,
+#     400:70.5,
+#     500:68.5,
+#     600:67,
+#     700:67,
+#     800:67,
+#     900:67,
+#     1000:67,
+# }
+
+max_grad = 120  # mT/m
+max_slew_rate = 50e-3  # mT/m/ms
+grad_raster_time = 10e-6  # s
+grad_rise_time = 400e-6 # s, time for gradient ramps
+grad_steps = 5 # steps to gradient ramps
+gammaB = 42.576e6 # Hz/T, Gyromagnetic ratio
+blkTime = 1000 # us, blanking time of Barthel's RFPA
+gradDelay = 9 # Gradient amplifier delay (us)
+oversamplingFactor = 1 # Rx oversampling
+maxRdPoints = (2**18-3072) # Maximum number of points to be acquired by the red pitaya
+maxOrders = 2**14 # Maximum number of orders to be processed by the red pitaya
+deadTime = 400 # us, RF coil dead time
+# b1Efficiency = np.pi/(0.3*70) # rads / (a.u. * us)
+larmorFreq = 10.36 # MHz
+cic_delay_points = 3 # to account for signal delay from red pitaya due to cic filter
+addRdPoints = 0 # to account for wrong first points after decimation
+adcFactor = 13.788 # mV/adcUnit
+
+RFgatePreTime = 1000e-6 # s Preparation time of RF gate.
+bash_path = "gnome-terminal" #for genome linux
+rp_ip_address = "10.42.0.24"
+# antenna_dict = {"RF01": np.pi/(0.3*70), "RF02": np.pi/(0.3*70)}
+# fov = [20.0, 20.0, 20.0]
+# dfov = [0.0, 0.0, 0.0]
+
+rp_version = "rp-122"
+lnaGain = 50 # dB
+# temperature = 293 # k
+shimming_factor = 1e-5
+
+

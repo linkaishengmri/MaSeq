@@ -53,11 +53,11 @@ class SearchP90SINCPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='search_p90', val='fid')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35597, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53592, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=180, field='RF')
         
         self.addParameter(key='rfExAmpSearchRange', 
-                          string='RF Amp Searching Range (uT)', val=[35,.5,45], field='RF',
+                          string='RF Amp Searching Range (uT)', val=[80,5,110], field='RF',
                           tip="[begin, step, end]")
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         
