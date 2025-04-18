@@ -374,9 +374,9 @@ class PseqInterpreter(PSInterpreter):
         grad_y_amp = gpe.pre_emphasis_grad_directterm((grad_y_t, grad_y_amp), self._grad_preemphasis_coeff['yy'])
         grad_z_amp = gpe.pre_emphasis_grad_directterm((grad_z_t, grad_z_amp), self._grad_preemphasis_coeff['zz'])
 
-        grad_x_t, grad_x_amp = gpe.reduce_grad_waveform(grad_x_t, grad_x_amp, threshold=1e-5)
-        grad_y_t, grad_y_amp = gpe.reduce_grad_waveform(grad_y_t, grad_y_amp, threshold=1e-5)
-        grad_z_t, grad_z_amp = gpe.reduce_grad_waveform(grad_z_t, grad_z_amp, threshold=1e-5)
+        grad_x_t, grad_x_amp = gpe.reduce_grad_waveform(grad_x_t, grad_x_amp, threshold=1e-4)
+        grad_y_t, grad_y_amp = gpe.reduce_grad_waveform(grad_y_t, grad_y_amp, threshold=1e-4)
+        grad_z_t, grad_z_amp = gpe.reduce_grad_waveform(grad_z_t, grad_z_amp, threshold=1e-4)
 
         # [TODO] cross term compensation
         # [TODO here]

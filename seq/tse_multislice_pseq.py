@@ -74,12 +74,12 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=400.0, units=units.ms, field='SEQ')
         
-        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[75, 75], units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[128, 128, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.3333333333333333, units=units.kHz, field='IM',
@@ -92,9 +92,9 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=18.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='fsp_r', string='Readout Spoiling', val=.5, field='OTH',
+        self.addParameter(key='fsp_r', string='Readout Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for readout.")
-        self.addParameter(key='fsp_s', string='Slice Spoiling', val=.5, field='OTH',
+        self.addParameter(key='fsp_s', string='Slice Spoiling', val=2, field='OTH',
                           tip="Gradient spoiling for slice.")
         
 

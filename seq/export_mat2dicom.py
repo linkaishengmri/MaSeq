@@ -303,7 +303,7 @@ class blankSeqAnalysis(blankSeq.MRIBLANKSEQ):
         self.session["study_id"] = 'abc'
         self.session["scanner"] = 'abc'
         self.session["seriesNumber"] = 0
-        self.image2Dicom(fileName='generated_dicom05.dcm')
+        self.image2Dicom(fileName='generated_dicom17.dcm')
         
         #self.saveRawData()
 
@@ -324,8 +324,8 @@ def mat2dicom(mat_filename, seq_filename, dicom_filename = None):
     seq.sequenceAnalysis()
     
 if __name__ == '__main__':
-    mat2dicom(mat_filename = '/home/lks/MaSeq_pack/MaSeq/seq/experiments/acquisitions/2025.04.04/mat/raw_data_20250404_165240.mat',
-              seq_filename = '/home/lks/MaSeq_pack/MaSeq/seq/experiments/acquisitions/2024.04.04/seq/raw_data_20250404_165240_1.seq',
+    mat2dicom(mat_filename = '/home/lks/MaSeq_pack/MaSeq/seq/experiments/acquisitions/2025.04.18/mat/raw_data_20250418_162419.mat',
+              seq_filename = '/home/lks/MaSeq_pack/MaSeq/seq/experiments/acquisitions/2024.04.18/seq/raw_data_20250418_162419_1.seq',
               # dicom_filename is based on current time
               )
     
