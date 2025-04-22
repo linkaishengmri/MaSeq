@@ -69,16 +69,16 @@ class FLASHPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoTime', string='Echo time (ms)', val=9.0, units=units.ms, field='SEQ')
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
-        self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
+        self.addParameter(key='thickness', string='Slice thickness (mm)', val=4, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
         
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[128, 128, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=0, field='SEQ')
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=29.767441860465116, units=units.kHz, field='IM',
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.333333333333333333, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.002, 0.0015], field='SEQ')

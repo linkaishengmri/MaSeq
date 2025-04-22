@@ -58,35 +58,45 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.thickness = None
         self.sliceGap = None
         self.phaseCycleEx = None
+        self.riseTime = None
         self.sliceGradComp = None
-        
+        self.phaseGradComp = None
+        self.sliceSpoilComp = None
+        self.sliceSpoilCompRD = None
 
         self.addParameter(key='seqName', string='se', val='se')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35505, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53547, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='rfSincReTime', string='RF sinc refocusing time (ms)', val=3.0, units=units.ms, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=500.0, units=units.ms, field='SEQ')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=400.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoTime', string='Echo time (ms)', val=15.0, units=units.ms, field='SEQ')
-        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[150, 150], units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=8, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 32, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[128, 128, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.3333333333333333333, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='shimming', string='Shimming', val=[0.001, 0.002, 0.001], field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='DephTime', string='Dephasing time (ms)', val=1.0, units=units.ms, field='OTH')
+        self.addParameter(key='DephTime', string='Dephasing time (ms)', val=1.25, units=units.ms, field='OTH')
+        self.addParameter(key='riseTime', string='Gradient rising time (ms)', val=0.5, units=units.ms, field='OTH')
         self.addParameter(key='sliceGradComp', string='Slice gradient compensation', val=0.5, field='OTH',
                           tip="Slice gradient compensation factor. This value is used to adjust the slice selection gradient amplitude.")
-
+        self.addParameter(key='phaseGradComp', string='Phase gradient compensation', val=0, field='OTH',
+                          tip="Phase gradient compensation factor. This value is used to adjust the phase selection gradient amplitude.")
+        self.addParameter(key='sliceSpoilComp', string='Slice spoiling gradient compensation', val=0, field='OTH',
+                          tip="Slice spoiling gradient compensation factor. This value is used to adjust the slice selection gradient amplitude.")
+        self.addParameter(key='sliceSpoilCompRD', string='RD Slice spoiling gradient compensation', val=1, field='OTH',
+                          tip="Slice spoiling recovery gradient compensation factor. This value is used to adjust the slice selection gradient amplitude.")
+        
     def sequenceInfo(self):
         print("Pulseq Reader")
         print("Author: PhD. J.M. Algarín")
@@ -161,8 +171,8 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
                         'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
                             np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
-                 }
-
+                 },
+            use_fir_decimation = (self.bandwidth < 30.007326007326007e3), # 30kHz
         )
         
         '''
@@ -171,18 +181,19 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         slew rates, and dead times. They are typically set based on the hardware configuration file (`hw_config`).
         '''
         self.system = pp.Opts(
-            rf_dead_time=100 * 1e-6,  # Dead time between RF pulses (s)
+            rf_dead_time=1000 * 1e-6,  # Dead time between RF pulses (s)
             max_grad=38,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
             slew_unit='mT/m/ms',  # Units of gradient slew rate
             grad_raster_time=hw.grad_raster_time, # hw.grad_raster_time,  # Gradient raster time (s)
-            rise_time=hw.grad_rise_time,  # Gradient rise time (s)
+            rise_time=self.riseTime,  # Gradient rise time (s)
             rf_raster_time=10e-6,
             block_duration_raster=1e-6,
             adc_raster_time=1/(122.88e6),
-            adc_dead_time=0e-6,
-            rf_ringdown_time=100e-6,
+            # adc_dead_time=0e-6,
+            
+            rf_ringdown_time=0e-6,
             
 
         )
@@ -246,6 +257,13 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             phase_offset= np.pi / 2,
             return_gz=True,
         )
+        gz_ex = pp.make_trapezoid(
+            channel="z",
+            system=self.system,
+            amplitude=gz90.amplitude,
+            flat_time=t_exwd,
+            rise_time=self.system.rise_time,
+        )
         rf180, gz180, _ = pp.make_sinc_pulse(
             flip_angle=self.rfReFA * np.pi / 180,
             system=self.system,
@@ -257,21 +275,29 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
             use="refocusing",
             return_gz=True,
         )
+        gz_ref = pp.make_trapezoid(
+            channel="z",
+            system=self.system,
+            amplitude=gz180.amplitude,
+            flat_time=t_refwd,
+            rise_time=self.system.rise_time,
+        )
         rf180.signal = rf180.signal * rf_ref_correction_coeff
         delta_kx = 1 / self.fov[0]
         delta_ky = 1 / self.fov[1]
         
         k_widthx = Nx * delta_kx
         k_widthy = Ny * delta_ky
-        gx =  pp.make_trapezoid(channel='x', system=self.system, flat_area=k_widthx, flat_time=readout_time)
+        gx =  pp.make_trapezoid(channel='x', system=self.system, flat_area=k_widthx, flat_time=readout_time, rise_time=self.system.rise_time)
         adc = pp.make_adc(num_samples=Nx, duration=gx.flat_time, delay=gx.rise_time)
 
 
         phase_areas = (np.arange(Ny) - (Ny // 2)) * delta_ky
-        gz_reph = pp.make_trapezoid(channel='z', system=self.system, area=-gz90.area * self.sliceGradComp, duration=DepTime * 2)
-        gx_pre = pp.make_trapezoid(channel='x', system=self.system, area=gx.area / 2, duration=DepTime * 2)
-        gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=phase_areas[-1], duration=DepTime * 2)
-        gz_spoil = pp.make_trapezoid(channel='z', system=self.system, area=gz90.area * 1, duration=DepTime)
+        gz_reph = pp.make_trapezoid(channel='z', system=self.system, area=-gz_ex.area * self.sliceGradComp, duration=DepTime * 2, rise_time=self.system.rise_time )
+        gx_pre = pp.make_trapezoid(channel='x', system=self.system, area=gx.area / 2, duration=DepTime * 2, rise_time=self.system.rise_time)
+        gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=phase_areas[-1], duration=DepTime * 2, rise_time=self.system.rise_time)
+        gz_spoil = pp.make_trapezoid(channel='z', system=self.system, area=gz90.area * self.sliceSpoilComp, duration=DepTime, rise_time=self.system.rise_time)
+        gz_spoil_RD = pp.make_trapezoid(channel='z', system=self.system, area=gz90.area * self.sliceSpoilCompRD, duration=DepTime, rise_time=self.system.rise_time)
 
         delay1 = tau - pp.calc_duration(rf90) / 2 - pp.calc_duration(gx_pre)
         delay1 -= pp.calc_duration(gz_spoil) - pp.calc_duration(rf180) / 2
@@ -323,14 +349,15 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
 
             # Initialize a list to hold oversampled data
             data_over = []
-
+            real_bandwidth = bandwidth * self.flo_interpreter._fir_decimation_rate 
+            
             # Iterate through each batch of waveforms
             for seq_num in waveforms.keys():
                 # Initialize the experiment if not in demo mode
                 if not self.demo:
                     self.expt = ex.ExperimentMultiFreq(
                         lo_freq=frequency,  # Larmor frequency in MHz
-                        rx_t=1 / bandwidth,  # Sampling time in us
+                        rx_t=1 / real_bandwidth,  # Sampling time in us
                         init_gpa=False,  # Whether to initialize GPA board (False for now)
                         gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
                         auto_leds=True,  # Automatic control of LEDs
@@ -347,7 +374,7 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                 else:
                     encoding_ok = True
                     # print("Sequence waveforms loaded successfully")
-                if self.plotSeq:
+                if self.plotSeq and not self.demo:
                     self.expt.plot_sequence()
 
                 # If not plotting the sequence, start scanning
@@ -355,7 +382,7 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                     for scan in range(self.nScans):
                         print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{1} running...")
                         acquired_points = 0
-                        expected_points = n_readouts[seq_num] * hw.oversamplingFactor  # Expected number of points
+                        expected_points = n_readouts[seq_num] * self.flo_interpreter._fir_decimation_rate * hw.oversamplingFactor  # Expected number of points
 
                         # Continue acquiring points until we reach the expected number
                         while acquired_points != expected_points:
@@ -447,19 +474,19 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                     #     0 
                     #     - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     # )
-                    batches[batch_num].add_block(rf90, gz90)
-                    gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=-phase_areas[k_ex], duration=self.DephTime*2)
+                    batches[batch_num].add_block(rf90, gz_ex)
+                    gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=-phase_areas[k_ex], duration=self.DephTime*2, rise_time=self.system.rise_time)
                     batches[batch_num].add_block(gx_pre, gy_pre, gz_reph)
                     batches[batch_num].add_block(delay1)
                     batches[batch_num].add_block(gz_spoil)
-                    batches[batch_num].add_block(rf180, gz180)
+                    batches[batch_num].add_block(rf180, gz_ref)
                     batches[batch_num].add_block(gz_spoil)
                     batches[batch_num].add_block(delay2)
                     batches[batch_num].add_block(gx, adc)
                     assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
                     n_rd_points = n_rd_points + self.nPoints[0]
-                    gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=phase_areas[s], duration=self.DephTime*2)
-                    batches[batch_num].add_block(gy_pre, gz_spoil)
+                    gy_pre = pp.make_trapezoid(channel='y', system=self.system, area=phase_areas[s]**self.phaseGradComp, duration=self.DephTime*2, rise_time=self.system.rise_time)
+                    batches[batch_num].add_block(gy_pre, gz_spoil_RD)
                     batches[batch_num].add_block(delay_TR)
                     
                     
@@ -554,11 +581,18 @@ class SEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['resolution'] = resolution
 
         # Get data
-        data_full = self.mapVals['data_full']
+        data_full_pre = self.mapVals['data_full']
         nRD, nPH, nSL = self.nPoints
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = self.mapVals['n_batches']
+        # fir decimator
+        if self.flo_interpreter._fir_decimation_rate > 1:
+            data_waiting_for_fir = np.reshape(data_full_pre, newshape=(-1, self.flo_interpreter._fir_decimation_rate * nRD))
+            data_full = self.flo_interpreter.fir_decimator(input_matrix=data_waiting_for_fir, decimation_rate=3)
+        else:
+            data_full = data_full_pre
 
+        
         # Reorganize data_full
         data_prov = np.zeros([self.nScans, nRD * nPH * nSL], dtype=complex)
         if n_batches > 1:
