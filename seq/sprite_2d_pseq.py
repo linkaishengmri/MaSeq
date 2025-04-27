@@ -66,9 +66,9 @@ from pypulseq.convert import convert
 #     900:67,
 #     1000:67,
 # }
-class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
+class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(SPRITER1dSEQ, self).__init__()
+        super(SPRITER2dSEQ, self).__init__()
         # Input the parameters
         self.nScans = None
         self.larmorFreq = None
@@ -89,19 +89,19 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53520, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35642, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=10.0, units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=400.0, units=units.us, field='RF')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=2, units=units.ms, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=0.3, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
         self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=.5, units=units.ms, field='OTH')
         self.addParameter(key='SpoilingTimeAfterRising', string='Grad. soiling time after grad. rising (ms)', val=0.5, units=units.ms, field='OTH')
-        self.addParameter(key='fov', string='FOV (mm)', val=150, units=units.mm, field='IM')
+        self.addParameter(key='fov', string='FOV [x,y](mm)', val=[100, 100], units=units.mm, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=106.66666666666667, units=units.kHz, field='IM',
                                 tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
-        self.addParameter(key='SamplingPoints', string='Sampling Points Number', val=128, field='IM')
-        self.addParameter(key='shimming', string='shimming', val=[0.0013, 0.0013, 0.0005], units=units.sh, field='OTH')
+        self.addParameter(key='SamplingPoints', string='Sampling Points Number[x,y]', val=[8, 8], field='IM')
+        self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
@@ -161,7 +161,7 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
         self.system = pp.Opts(
             rf_dead_time=10 * 1e-6,  # Dead time between RF pulses (s)
             rf_ringdown_time= 10 * 1e-6,
-            max_grad=40,  # Maximum gradient strength (mT/m)
+            max_grad=60,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
             slew_unit='mT/m/ms',  # Units of gradient slew rate
@@ -214,10 +214,13 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
         )
         adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration) 
         
-        delta_kx = 1 / self.fov
-        phase_areas_x = (np.arange(self.SamplingPoints) - self.SamplingPoints // 2) * delta_kx
+        delta_kx = 1 / self.fov[0]
+        delta_ky = 1 / self.fov[1]
+        phase_areas_x = (np.arange(self.SamplingPoints[0]) - self.SamplingPoints[0] // 2) * delta_kx
         phase_amp_x = phase_areas_x / self.echoTime
-        last_phase_amp_x = 0
+        phase_areas_y = (np.arange(self.SamplingPoints[1]) - self.SamplingPoints[1] // 2) * delta_ky
+        phase_amp_y = phase_areas_y / self.echoTime
+        
         acq_points = 0
         seq = pp.Sequence(system=self.system)
 
@@ -231,43 +234,53 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
 
         for scan in range(self.nScans):
             last_phase_amp_x = 0
-            for ind in range(self.SamplingPoints):
-                
-                current_phase_amp_x = phase_amp_x[ind]
-                rise_x = pp.make_extended_trapezoid(
-                    channel="x", 
-                    times=np.array([0, self.riseTime]),
-                    amplitudes=np.array([last_phase_amp_x, current_phase_amp_x]),
-                    system=self.system)
-                rise_y = pp.make_extended_trapezoid(
-                    channel="y", 
-                    times=np.array([0, self.riseTime]),
-                    amplitudes=np.array([0, 0]),
-                    system=self.system)
+            last_phase_amp_y = 0
+        
+            for ind_y in range(self.SamplingPoints[1]):
+                current_phase_amp_y = phase_amp_y[ind_y]
                 rise_z = pp.make_extended_trapezoid(
-                    channel="z", 
-                    times=np.array([0, self.riseTime]),
-                    amplitudes=np.array([0, 0]),
-                    system=self.system)
-                grad_Hz = np.array([current_phase_amp_x, 0, 0]) 
-                seq.add_block(rise_x, rise_y, rise_z)
-                seq.add_block(pp.make_delay(self.SpoilingTimeAfterRising), *make_flat_grad(pp.calc_duration(self.SpoilingTimeAfterRising), grad_Hz))
-                seq.add_block(rf_ex, *make_flat_grad(pp.calc_duration(rf_ex), grad_Hz))
-                seq.add_block(pp.make_delay(delay_TE), *make_flat_grad(pp.calc_duration(delay_TE), grad_Hz))
-                seq.add_block(adc, pp.make_delay(readout_duration_rounded), *make_flat_grad(pp.calc_duration(readout_duration_rounded), grad_Hz))
-                acq_points += self.nPoints
-                delay_spoiling = pp.make_delay(delay_Spoiling_before_rising)
-                seq.add_block(delay_spoiling, *make_flat_grad(pp.calc_duration(delay_spoiling), grad_Hz))
-                last_phase_amp_x = current_phase_amp_x
+                        channel="z", 
+                        times=np.array([0, self.riseTime]),
+                        amplitudes=np.array([0, 0]),
+                        system=self.system)
+                for ind in range(self.SamplingPoints[0]):
+                    
+                    current_phase_amp_x = phase_amp_x[ind]
+                    rise_x = pp.make_extended_trapezoid(
+                        channel="x", 
+                        times=np.array([0, self.riseTime]),
+                        amplitudes=np.array([last_phase_amp_x, current_phase_amp_x]),
+                        system=self.system)
+                    rise_y = pp.make_extended_trapezoid(
+                        channel="y", 
+                        times=np.array([0, self.riseTime]),
+                        amplitudes=np.array([last_phase_amp_y, current_phase_amp_y]),
+                        system=self.system)
+                    grad_Hz = np.array([current_phase_amp_x, current_phase_amp_y, 0]) 
+                    seq.add_block(rise_x, rise_y, rise_z)
+                    seq.add_block(pp.make_delay(self.SpoilingTimeAfterRising), *make_flat_grad(pp.calc_duration(self.SpoilingTimeAfterRising), grad_Hz))
+                    seq.add_block(rf_ex, *make_flat_grad(pp.calc_duration(rf_ex), grad_Hz))
+                    seq.add_block(pp.make_delay(delay_TE), *make_flat_grad(pp.calc_duration(delay_TE), grad_Hz))
+                    seq.add_block(adc, pp.make_delay(readout_duration_rounded), *make_flat_grad(pp.calc_duration(readout_duration_rounded), grad_Hz))
+                    acq_points += self.nPoints
+                    delay_spoiling = pp.make_delay(delay_Spoiling_before_rising)
+                    seq.add_block(delay_spoiling, *make_flat_grad(pp.calc_duration(delay_spoiling), grad_Hz))
+                    last_phase_amp_x = current_phase_amp_x
+                    last_phase_amp_y = current_phase_amp_y
             fall_x = pp.make_extended_trapezoid(
                 channel="x", 
                 times=np.array([0, self.riseTime]),
                 amplitudes=np.array([last_phase_amp_x, 0]),
                 system=self.system
             )
-            seq.add_block(fall_x)
-            last_phase_amp_x = 0
-
+            fall_y = pp.make_extended_trapezoid(
+                channel="y", 
+                times=np.array([0, self.riseTime]),
+                amplitudes=np.array([last_phase_amp_y, 0]),
+                system=self.system
+            )
+            seq.add_block(fall_x, fall_y)
+            
         if plotSeq:
             # Check whether the timing of the sequence is correct
             ok, error_report = seq.check_timing()
@@ -276,7 +289,7 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
             else:
                 print("Timing check failed. Error listing follows:")
                 [print(e) for e in error_report]   
-            print(seq.test_report())
+
             seq.plot(show_blocks =False)
             k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = seq.calculate_kspace()
 
@@ -337,7 +350,7 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
             if True:
                 print(f"Scan running...")
                 acquired_points = 0
-                expected_points = self.nPoints * self.SamplingPoints * self.nScans  # Expected number of points
+                expected_points = self.nPoints * self.SamplingPoints[0] * self.SamplingPoints[1] * self.nScans  # Expected number of points
 
                 # Continue acquiring points until we reach the expected number
                 while acquired_points != expected_points:
@@ -383,133 +396,246 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
 
         
 
-
     def sequenceAnalysis(self, mode=None):
-        
-        def getFHWM(s,f_vector,bw):
-            target = np.max(s) / 2
-            p0 = np.argmax(s)
-            f0 = f_vector[p0]
-            s1 = np.abs(s[0:p0]-target)
-            f1 = f_vector[np.argmin(s1)]
-            s2 = np.abs(s[p0::]-target)
-            f2 = f_vector[np.argmin(s2)+p0]
-            return f2-f1
-
         self.mode = mode
-        # Signal and spectrum from 'fir' and decimation
+        self.etl = 1 # for ssfp
+        #self.axesOrientation = [0,1,2] # for ssfp
+        self.unlock_orientation = 0 # for ssfp
+        resolution = self.fov / self.SamplingPoints
+        self.mapVals['resolution'] = resolution
 
+        nRD, nPH, nSL = self.self.SamplingPoints[0], self.SamplingPoints[1], 1
+        nRD = nRD + 2 * hw.addRdPoints
+        n_batches = 1
 
+        # Get data
+        data_full_pre = self.mapVals['data']
+        
+        # fir decimator
+        if self.flo_interpreter._fir_decimation_rate > 1:
+            data_waiting_for_fir = np.reshape(data_full_pre, newshape=(-1, self.flo_interpreter._fir_decimation_rate * nRD))
+            data_full = self.flo_interpreter.fir_decimator(input_matrix=data_waiting_for_fir, decimation_rate=3)
+        else:
+            data_full = data_full_pre
+        
+
+        # Reorganize data_full
+        data_prov = np.zeros([self.nScans, nRD * nPH * nSL ], dtype=complex)
+        if n_batches > 1:
+            n_rds = self.mapVals['n_readouts']
+            data_full_a = data_full[0:sum(n_rds[0:-1]) * self.nScans]
+            data_full_b = data_full[sum(n_rds[0:-1]) * self.nScans:]
+            data_full_a = np.reshape(data_full_a, newshape=(n_batches - 1, self.nScans, -1, nRD))
+            data_full_b = np.reshape(data_full_b, newshape=(1, self.nScans, -1, nRD))
+            for scan in range(self.nScans):
+                data_scan_a = np.reshape(data_full_a[:, scan, :, :], -1)
+                data_scan_b = np.reshape(data_full_b[:, scan, :, :], -1)
+                data_prov[scan, :] = np.concatenate((data_scan_a, data_scan_b), axis=0)
+        else:
+            data_full = np.reshape(data_full, (1, self.nScans, -1, nRD))
+            for scan in range(self.nScans):
+                data_prov[scan, :] = np.reshape(data_full[:, scan, :, :], -1)
+        
         # [TODO]: Add Rx phase here
-        if True:
-            rawdata = self.mapVals['data']
-            chName = self.mapVals['rxChName']
-            expiangle = self.flo_interpreter.get_rx_phase_dict()[chName]
-            raw_data_reshape = np.reshape(rawdata, newshape=(-1, self.mapVals['SamplingPoints']))
-            
-            for line in range(raw_data_reshape.shape[0]):
-                raw_data_reshape[line, :] = raw_data_reshape[line, :] * expiangle[line]
-            signal = np.reshape(raw_data_reshape, -1)
-        else: 
-            signal = self.mapVals['data']
-
-
+        expiangle = self.flo_interpreter.get_rx_phase_dict()['rx0']
+        raw_data = np.reshape(data_prov, newshape=(1, self.nScans, -1, nRD))
+        for scan in range(self.nScans):
+            for line in range(raw_data.shape[2]):
+                raw_data[0, scan, line, :] = raw_data[0, scan, line, :] * expiangle[line]
+        data_full = np.reshape(raw_data, -1)
+        
         # Average data
-        signal = np.average(np.reshape(signal, (self.nScans, -1)), axis=0)
-
-          
-        # average filter
-        bw = self.mapVals['bw_MHz']*1e3 # kHz
-        nPoints = self.mapVals['nScans'] * self.mapVals['SamplingPoints'] 
-        deadTime = 0 #self.mapVals['deadTime']*1e-3 # ms
-        rfRectExTime = self.mapVals['rfExTime']*1e-3 # ms
+        data_full = np.reshape(data_full, newshape=(self.nScans, -1))
+        data = np.average(data_full, axis=0)
+        self.mapVals['data'] = data
         
 
-        def create_tVector(bw, nPoint, echoSpacing, etl, RFinterval = False):
-            point_interval = 1 / bw
-            # window_duration = nPoint * point_interval
-            start_times = np.arange(0, etl * echoSpacing, echoSpacing)
-            if RFinterval:
-                tVector = np.concatenate([start_time + np.arange(nPoint) * point_interval for start_time in start_times])
-            else:
-                tVector = np.reshape([np.arange(nPoint * etl) * point_interval], newshape=(-1))
-            return tVector
 
-        #tVector = np.linspace(rfRectExTime/2 + deadTime + 0.5/bw, rfRectExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
-        tVector = np.arange(self.mapVals['SamplingPoints'])
-        tVecRes = np.reshape(tVector, newshape=(-1, self.mapVals['SamplingPoints']))
+        # Original methods to reconstruct:
+        # slice_idx = self.mapVals['sliceIdx']
+        # data_arrange_slice = np.zeros(shape=(nSL, nPH, nRD), dtype=complex)
+        # data_shape = np.reshape(data, newshape=(nPH, nSL, nRD))
+        # for s_i in range(nSL):
+        #     data_arrange_slice[slice_idx[s_i], :, :] = data_shape[:, s_i, :]
+
+        # data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
+        # data_ind = data_ind[:, :, :, hw.addRdPoints: nRD - hw.addRdPoints]
+        # self.mapVals['kSpace'] = data_ind
         
-        # fir_coefficients = np.ones(self.mapVals['filterWindowSize']) / self.mapVals['filterWindowSize']
-        # num_taps = len(fir_coefficients)
-        # signal_waiting_for_filters = np.reshape(signal, newshape=(-1, self.mapVals['SamplingPoints']))
-        # output_length = signal_waiting_for_filters.shape[1] - num_taps + 1
-        # filtered = np.zeros((signal_waiting_for_filters.shape[0], output_length), dtype=complex)
-        # filtered_time = np.zeros((signal_waiting_for_filters.shape[0], output_length))
 
-        # for i in range(signal_waiting_for_filters.shape[0]):
-        #     real_filtered = np.convolve(signal_waiting_for_filters[i].real, fir_coefficients, mode='valid')
-        #     imag_filtered = np.convolve(signal_waiting_for_filters[i].imag, fir_coefficients, mode='valid')
-        #     filtered[i] = real_filtered + 1j * imag_filtered
-        #     filtered_time[i] = tVecRes[i, num_taps - 1:] 
-        # filtered_signal = np.reshape(filtered, newshape=(-1))
-        # filtered_time_vector = np.reshape(filtered_time, newshape=(-1))
+        # sort method to reconstruct:
+        n_ex = int(np.floor(self.nPoints[1]))
+        data_shape = np.reshape(data, newshape=(n_ex, nSL, 1, nRD))
         
-        fVector = np.linspace(-bw/2, bw/2, nPoints)
-        spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
-        # hw.larmorFreq=fitedLarmor
-        # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        fwhm=getFHWM(spectrum, fVector, bw)
-        dB0=fwhm*1e6/fitedLarmor
+        kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
+        # data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq, shape=(nSL, nPH, nRD))
+        data_ind = kdata_input
+        data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
+        self.mapVals['kSpace'] = data_ind
 
-
-        # t_filtered = tVector[:filtered_signal.shape[0]]
-
-        # for sequence in self.sequenceList.values():
-        #     if 'larmorFreq' in sequence.mapVals:
-        #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
-        self.mapVals['larmorFreq'] = fitedLarmor
-
-        # Get the central frequency
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        print('FHWM: %1.5f kHz' % fwhm)
-        print('dB0/B0: %1.5f ppm' % dB0)
-
-        self.mapVals['signalVStime'] = [tVector, signal]
-        self.mapVals['spectrum'] = [fVector, spectrum]
-        # self.mapVals['filtered_signalVStime'] = [filtered_time_vector, filtered_signal]
+        # Get images
         
-        # Add time signal to the layout
-        result1 = {'widget': 'curve',
-                   'xData': tVector,
-                   'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
-                   'xLabel': 'Points',
-                   'yLabel': 'Signal amplitude',
-                   'title': 'Signal vs Points',
-                   'legend': ['abs', 'real', 'imag'],
+        image_ind = np.zeros_like(data_ind)
+        for s in range(nSL):
+            image_ind[0,s,:,:] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[0,s,:,:])))
+        self.mapVals['iSpace'] = image_ind
+        
+        # Prepare data to plot (plot central slice)
+        axes_dict = {'x': 0, 'y': 1, 'z': 2}
+        axes_keys = list(axes_dict.keys())
+        axes_vals = list(axes_dict.values())
+        axes_str = ['', '', '']
+        n = 0
+        for val in self.axesOrientation:
+            index = axes_vals.index(val)
+            axes_str[n] = axes_keys[index]
+            n += 1
+
+        # Normalize image
+        k_space = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
+        image = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
+
+        
+        n = 0
+        for slice in range(nSL):
+            for echo in range(self.etl):
+                k_space[n, :, :] = np.abs(data_ind[echo, slice, :, :])
+                image[n, :, :] = np.abs(image_ind[echo, slice, :, :])
+                n += 1
+        image = image / np.max(image) * 100
+        # plt.plot(np.real(k_space[0,0,:]))
+        # plt.show()
+        imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        if not self.unlock_orientation:  # Image orientation
+            
+            if self.axesOrientation[2] == 2:  # Sagittal
+                title = "Sagittal"
+                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:  # OK
+                    image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    k_space = np.flip(k_space, axis=2)
+                    k_space = np.flip(k_space, axis=1)
+                    x_label = "(-Y) A | PHASE | P (+Y)"
+                    y_label = "(-X) I | READOUT | S (+X)"
+                    imageOrientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
+                else:
+                    image = np.transpose(image, (0, 2, 1))
+                    image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    k_space = np.transpose(k_space, (0, 2, 1))
+                    k_space = np.flip(k_space, axis=2)
+                    k_space = np.flip(k_space, axis=1)
+                    x_label = "(-Y) A | READOUT | P (+Y)"
+                    y_label = "(-X) I | PHASE | S (+X)"
+                    imageOrientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
+            elif self.axesOrientation[2] == 1:  # Coronal
+                title = "Coronal"
+                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2:  # OK
+                    image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    image = np.flip(image, axis=0)
+                    k_space = np.flip(k_space, axis=2)
+                    k_space = np.flip(k_space, axis=1)
+                    k_space = np.flip(k_space, axis=0)
+                    x_label = "(+Z) R | PHASE | L (-Z)"
+                    y_label = "(-X) I | READOUT | S (+X)"
+                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+                else:
+                    image = np.transpose(image, (0, 2, 1))
+                    image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    image = np.flip(image, axis=0)
+                    k_space = np.transpose(k_space, (0, 2, 1))
+                    k_space = np.flip(k_space, axis=2)
+                    k_space = np.flip(k_space, axis=1)
+                    k_space = np.flip(k_space, axis=0)
+                    x_label = "(+Z) R | READOUT | L (-Z)"
+                    y_label = "(-X) I | PHASE | S (+X)"
+                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+            elif self.axesOrientation[2] == 0:  # Transversal
+                title = "Transversal"
+                if self.axesOrientation[0] == 1 and self.axesOrientation[1] == 2:
+                    image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    k_space = np.flip(k_space, axis=2)
+                    k_space = np.flip(k_space, axis=1)
+                    x_label = "(+Z) R | PHASE | L (-Z)"
+                    y_label = "(+Y) P | READOUT | A (-Y)"
+                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+                else:  # OK
+                    image = np.transpose(image, (0, 2, 1))
+                    image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    k_space = np.transpose(k_space, (0, 2, 1))
+                    k_space = np.flip(k_space, axis=2)
+                    k_space = np.flip(k_space, axis=1)
+                    x_label = "(+Z) R | READOUT | L (-Z)"
+                    y_label = "(+Y) P | PHASE | A (-Y)"
+                    imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        else:
+            x_label = "%s axis" % axes_str[1]
+            y_label = "%s axis" % axes_str[0]
+            title = "Image"
+
+        result1 = {'widget': 'image',
+                   'data': image,
+                   'xLabel': x_label,
+                   'yLabel': y_label,
+                   'title': title,
                    'row': 0,
                    'col': 0}
 
-        result2 = {'widget': 'curve',
-                   'xData': fVector,
-                   'yData': [spectrum],
-                   'xLabel': 'Frequency (kHz)',
-                   'yLabel': 'Spectrum amplitude (a.u.)',
-                   'title': 'Spectrum',
-                   'legend': [''],
-                   'row': 1,
-                   'col': 0}
+        result2 = {'widget': 'image',
+                   'data': np.log10(k_space+0.01), # plus 0.01 in case of log(0) = -inf
+                   'xLabel': x_label,
+                   'yLabel': y_label,
+                   'title': "k_space",
+                   'row': 0,
+                   'col': 1}
+ 
+
+        # Dicom tags
+        image_DICOM = np.transpose(image, (0, 2, 1))
+        slices, rows, columns = image_DICOM.shape
+        self.meta_data["Columns"] = columns
+        self.meta_data["Rows"] = rows
+        self.meta_data["NumberOfSlices"] = slices
+        self.meta_data["NumberOfFrames"] = slices
+        img_full_abs = np.abs(image_DICOM) * (2 ** 15 - 1) / np.amax(np.abs(image_DICOM))
+        img_full_int = np.int16(np.abs(img_full_abs))
+        img_full_int = np.reshape(img_full_int, newshape=(slices, rows, columns))
+        arr = img_full_int
+        self.meta_data["PixelData"] = arr.tobytes()
+        self.meta_data["WindowWidth"] = 26373
+        self.meta_data["WindowCenter"] = 13194
+        self.meta_data["ImageOrientationPatient"] = imageOrientation_dicom
+        resolution = self.mapVals['resolution'] * 1e3
+        self.meta_data["PixelSpacing"] = [resolution[0], resolution[1]]
+        self.meta_data["SliceThickness"] = resolution[2]
+        # Sequence parameters
+        self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
+        self.meta_data["EchoTime"] = self.mapVals['echoTime']
+        self.meta_data["FlipAngle"] = self.mapVals['rfExFA']
+        self.meta_data["NumberOfAverages"] = self.mapVals['nScans']
+        # self.meta_data["EchoTrainLength"] = self.mapVals['etl']
+        
+        self.meta_data["ScanningSequence"] = 'SPRITE'
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]
+
+        # save data once self.output is created
         self.saveRawData()
 
+        # Plot result in standalone execution
         if self.mode == 'Standalone':
             self.plotResults()
+
         return self.output
+ 
     
 if __name__ == '__main__':
-    seq = SPRITER1dSEQ()
+    seq = SPRITER2dSEQ()
     seq.sequenceAtributes()
     seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
