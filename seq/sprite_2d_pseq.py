@@ -89,19 +89,19 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35642, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53548, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=10.0, units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=0.3, units=units.ms, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=400.0, units=units.us, field='RF')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=1, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
         self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=.5, units=units.ms, field='OTH')
         self.addParameter(key='SpoilingTimeAfterRising', string='Grad. soiling time after grad. rising (ms)', val=0.5, units=units.ms, field='OTH')
-        self.addParameter(key='fov', string='FOV [x,y](mm)', val=[100, 100], units=units.mm, field='IM')
+        self.addParameter(key='fov', string='FOV [x,y](mm)', val=[150, 150], units=units.mm, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=106.66666666666667, units=units.kHz, field='IM',
                                 tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
-        self.addParameter(key='SamplingPoints', string='Sampling Points Number[x,y]', val=[8, 8], field='IM')
-        self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
+        self.addParameter(key='SamplingPoints', string='Sampling Points Number[x,y]', val=[16, 16], field='IM')
+        self.addParameter(key='shimming', string='shimming', val=[0.0013, 0.0019, 0.0005], units=units.sh, field='OTH')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
@@ -110,7 +110,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         pass
         
     def sequenceTime(self):
-        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['nPoints'] * self.mapVals['nScans'] / 60)  # minutes
+        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['SamplingPoints'][0] * self.mapVals['SamplingPoints'][1] * self.mapVals['nScans'] / 60)  # minutes
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
@@ -232,7 +232,8 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
             grad_z = pp.make_extended_trapezoid(channel="z", times=grad_flat_time, amplitudes=np.array([amplitude_list[2], amplitude_list[2]]), system=self.system)
             return grad_x, grad_y, grad_z
 
-        for scan in range(self.nScans):
+        if True:
+        # for scan in range(self.nScans):
             last_phase_amp_x = 0
             last_phase_amp_y = 0
         
@@ -289,28 +290,28 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
             else:
                 print("Timing check failed. Error listing follows:")
                 [print(e) for e in error_report]   
-
+            print(seq.test_report())
             seq.plot(show_blocks =False)
             k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = seq.calculate_kspace()
 
-            # plt.figure(10)
-            # plt.plot(k_traj[0],k_traj[1],linewidth=1)
-            # plt.plot(k_traj_adc[0],k_traj_adc[1],'.', markersize=1.4)
-            # plt.axis("equal")
-            # plt.title("k-space trajectory (kx/ky)")
+            plt.figure(10)
+            plt.plot(k_traj[0],k_traj[1],linewidth=1)
+            plt.plot(k_traj_adc[0],k_traj_adc[1],'.', markersize=1.4)
+            plt.axis("equal")
+            plt.title("k-space trajectory (kx/ky)")
 
-            # plt.figure(11)
-            # plt.plot(t_adc, k_traj_adc.T, linewidth=1)
-            # plt.xlabel("Time of acqusition (s)")
-            # plt.ylabel("Phase")
+            plt.figure(11)
+            plt.plot(t_adc, k_traj_adc.T, linewidth=1)
+            plt.xlabel("Time of acqusition (s)")
+            plt.ylabel("Phase")
             
-            # plt.figure(12)
-            # t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
-            # plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
-            # plt.axis("equal")
-            # plt.colorbar(label='Normalized Time')  # 添加颜色条
-            # plt.title("k-space trajectory (kx/ky) with Gradient")
-            # plt.show()
+            plt.figure(12)
+            t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
+            plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
+            plt.axis("equal")
+            plt.colorbar(label='Normalized Time')  # 添加颜色条
+            plt.title("k-space trajectory (kx/ky) with Gradient")
+            plt.show()
 
         seq.set_definition(key="Name", value="SPRITE1D")
         seq.write("SPRITE1D.seq")
@@ -346,11 +347,12 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
          
         # If not plotting the sequence, start scanning
         if not self.plotSeq:
+            self.mapVals['data_full'] = []
             # for scan in range(self.nScans):
-            if True:
-                print(f"Scan running...")
+            for scan in range(self.nScans):
+                print(f"Scan {scan + 1} running...")
                 acquired_points = 0
-                expected_points = self.nPoints * self.SamplingPoints[0] * self.SamplingPoints[1] * self.nScans  # Expected number of points
+                expected_points = self.nPoints * self.SamplingPoints[0] * self.SamplingPoints[1]  # Expected number of points
 
                 # Continue acquiring points until we reach the expected number
                 while acquired_points != expected_points:
@@ -362,7 +364,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
                     add_rx_points = self.flo_interpreter.get_add_rx_points()
-                    before_delete = np.reshape(rx_raw_data, newshape=(self.nScans, -1))
+                    before_delete = np.reshape(rx_raw_data, newshape=(1, -1))
                     rxdataremove = before_delete[:, add_rx_points:]
                     rxdata = np.reshape(rxdataremove, newshape=(-1))
                     acquired_points = np.size(rxdata)
@@ -376,16 +378,12 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
                 # Concatenate acquired data into the oversampled data array
                 data_over = np.concatenate((data_over, rxdata), axis=0)
                 print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
-                print(f"Scan ready!")
+                print(f"Scan {scan + 1} ready!")
                 # plt.plot(data_over)
                 # plt.show()
             # Decimate the oversampled data and store it
             self.mapVals['data_over'] = data_over
-
-            # Average data
-            # data = np.average(np.reshape(data_over, (self.nScans, -1)), axis=0)
-            self.mapVals['data'] = data_over
-
+            self.mapVals['data_full'] = np.concatenate((self.mapVals['data_full'], self.mapVals['data_over']), axis=0)
         
 
         if not self.demo:
@@ -404,12 +402,12 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         resolution = self.fov / self.SamplingPoints
         self.mapVals['resolution'] = resolution
 
-        nRD, nPH, nSL = self.self.SamplingPoints[0], self.SamplingPoints[1], 1
+        nRD, nPH, nSL = self.SamplingPoints[0], self.SamplingPoints[1], 1
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = 1
 
         # Get data
-        data_full_pre = self.mapVals['data']
+        data_full_pre = self.mapVals['data_full']
         
         # fir decimator
         if self.flo_interpreter._fir_decimation_rate > 1:
@@ -464,7 +462,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         
 
         # sort method to reconstruct:
-        n_ex = int(np.floor(self.nPoints[1]))
+        n_ex = int(np.floor(self.SamplingPoints[1]))
         data_shape = np.reshape(data, newshape=(n_ex, nSL, 1, nRD))
         
         kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
@@ -611,7 +609,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         self.meta_data["ImageOrientationPatient"] = imageOrientation_dicom
         resolution = self.mapVals['resolution'] * 1e3
         self.meta_data["PixelSpacing"] = [resolution[0], resolution[1]]
-        self.meta_data["SliceThickness"] = resolution[2]
+        # self.meta_data["SliceThickness"] = resolution[2]
         # Sequence parameters
         self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
         self.meta_data["EchoTime"] = self.mapVals['echoTime']
@@ -637,7 +635,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SPRITER2dSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

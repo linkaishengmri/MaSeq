@@ -88,12 +88,12 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
         self.axesOrientation = None
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53520, units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53375, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=10.0, units=units.ms, field='SEQ')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=400.0, units=units.us, field='RF')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=2, units=units.ms, field='SEQ')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=.3, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
         self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=.5, units=units.ms, field='OTH')
         self.addParameter(key='SpoilingTimeAfterRising', string='Grad. soiling time after grad. rising (ms)', val=0.5, units=units.ms, field='OTH')
@@ -110,7 +110,7 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
         pass
         
     def sequenceTime(self):
-        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['nPoints'] * self.mapVals['nScans'] / 60)  # minutes
+        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['SamplingPoints'] * self.mapVals['nScans'] / 60)  # minutes
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
@@ -491,9 +491,9 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
                    'col': 0}
 
         result2 = {'widget': 'curve',
-                   'xData': fVector,
+                   'xData': tVector,
                    'yData': [spectrum],
-                   'xLabel': 'Frequency (kHz)',
+                   'xLabel': 'Points',
                    'yLabel': 'Spectrum amplitude (a.u.)',
                    'title': 'Spectrum',
                    'legend': [''],
@@ -511,7 +511,7 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SPRITER1dSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
