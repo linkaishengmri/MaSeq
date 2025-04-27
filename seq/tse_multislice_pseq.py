@@ -94,7 +94,7 @@ class TSEMultislicePSEQ(blankSeq.MRIBLANKSEQ):
                           tip="List of phase values for cycling the excitation pulse.")
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for readout.")
-        self.addParameter(key='fsp_s', string='Slice Spoiling', val=2, field='OTH',
+        self.addParameter(key='fsp_s', string='Slice Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for slice.")
         
 

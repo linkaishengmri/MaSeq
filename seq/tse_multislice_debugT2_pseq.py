@@ -91,9 +91,9 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='fsp_r', string='Readout Spoiling', val=1, field='OTH',
+        self.addParameter(key='fsp_r', string='Readout Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for readout.")
-        self.addParameter(key='fsp_s', string='Slice Spoiling', val=2, field='OTH',
+        self.addParameter(key='fsp_s', string='Slice Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for slice.")
         self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 1], field='OTH',
                           tip="Enable gradients")
