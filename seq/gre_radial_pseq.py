@@ -62,11 +62,12 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         self.RFSpoilPhase = None
         self.fsp_r = None
         self.fsp_s = None
+        self.gx_comp = None
          
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33307, units=units.MHz, field='IM')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=60, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53487, units=units.MHz, field='IM')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoTime', string='Echo time (ms)', val=7.0, units=units.ms, field='SEQ')
@@ -92,7 +93,9 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
                           tip="Gradient spoiling for slice.")
-        
+        self.addParameter(key='gx_comp', string='gx_comp', val=0.47, field='OTH',
+                          tip="Gradient compensation for readout.") 
+     
      
 
     def sequenceTime(self):
@@ -245,7 +248,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         deltak = 1 / self.fovInPlane
         gx = pp.make_trapezoid(channel="x", flat_area=Nx * deltak, flat_time=readout_time, system=self.system)
         adc = pp.make_adc(num_samples=Nx, duration=gx.flat_time, delay=gx.rise_time, system=self.system)
-        gx_pre = pp.make_trapezoid(channel="x", area=-gx.area / 2, duration=self.DephTime, system=self.system)
+        gx_pre = pp.make_trapezoid(channel="x", area=-gx.area * self.gx_comp, duration=self.DephTime, system=self.system)
 
         # Gradient spoiling
         gx_spoil = pp.make_trapezoid(channel="x", area=self.fsp_r * Nx * deltak, duration=self.DephTime, system=self.system)
