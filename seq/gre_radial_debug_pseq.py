@@ -68,13 +68,13 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
          
         self.addParameter(key='seqName', string='gre', val='gre')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53487, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53380, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
         self.addParameter(key='echoTime', string='Echo time (ms)', val=12.0, units=units.ms, field='SEQ')
         
-        self.addParameter(key='fovInPlane', string='FOV (mm)', val=100, units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV (mm)', val=200, units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 12.0], units=units.mm, field='IM',
@@ -88,7 +88,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
         self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
-        self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0015, 0.0003], field='SEQ')
+        self.addParameter(key='shimming', string='Shimming', val=[0.0010, 0.0015, 0.0003], field='SEQ')
         self.addParameter(key='RFSpoilPhase', string='RF Spoiling Phase', val=117, field='OTH',
                           tip='117 deg is recommended')
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=0.5, field='OTH',
@@ -96,9 +96,9 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
                           tip="Gradient spoiling for slice.")
         self.addParameter(key='Nr', string='Number of radial readouts', val=1, field='OTH',)
-        self.addParameter(key='gx_comp', string='gx_comp', val=0.48, field='OTH',
+        self.addParameter(key='gx_comp', string='gx_comp', val=0.49, field='OTH',
                           tip="Gradient compensation for readout.") 
-        self.addParameter(key='gz_comp', string='gz_comp', val=0.5, field='OTH',
+        self.addParameter(key='gz_comp', string='gz_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for slice.") 
      
 
@@ -613,7 +613,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.mapVals['spectrum'] = [fVector, spectrum]
 
         # find the max arg of abs(signal), and judge if it is in the center of the signal
-        print(f'signal max index: {np.abs(signal).argmax()}/{len(signal)}')
+        print(f'signal max index: {np.abs(signal).argmax()}/{len(signal)}, val={np.max(np.abs(signal))}')
 
         # Add time signal to the layout
         result1 = {'widget': 'curve',
