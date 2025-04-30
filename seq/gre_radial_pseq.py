@@ -63,6 +63,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         self.fsp_r = None
         self.fsp_s = None
         self.gx_comp = None
+        self.gz_comp = None
          
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -95,6 +96,8 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for slice.")
         self.addParameter(key='gx_comp', string='gx_comp', val=0.47, field='OTH',
                           tip="Gradient compensation for readout.") 
+        self.addParameter(key='gz_comp', string='gz_comp', val=0.5, field='OTH',
+                          tip="Gradient compensation for slice.") 
      
      
 
@@ -151,7 +154,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             use_multi_freq = True,
             add_rx_points = 0,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=False,
+            use_grad_preemphasis=True,
             grad_preemphasis_coeff={
                         'zz':( (np.array([1.8061, 1.391, 0.2535, -0.0282]) * 1e-2, 
                             np.array([1567, 17510, 167180, 608533] ))),
@@ -243,7 +246,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             return_gz=True
         )
 
-        gz_reph = pp.make_trapezoid(channel="z", area=-gz.area / 2, duration=self.DephTime, system=self.system)
+        gz_reph = pp.make_trapezoid(channel="z", area=-gz.area * self.gz_comp, duration=self.DephTime, system=self.system)
         # Define other gradients and ADC events
         deltak = 1 / self.fovInPlane
         gx = pp.make_trapezoid(channel="x", flat_area=Nx * deltak, flat_time=readout_time, system=self.system)
@@ -427,6 +430,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             n_rd_points = 0
             rf_phase = 0
             rf_inc = 0
+            standard_seq = pp.Sequence(system=self.system)
             for s in range(n_slices):    
                 # slice offset
                 rf_freq_offset_slice = gz.amplitude * slice_positions[s]
@@ -444,27 +448,29 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     rf_phase = (rf_phase + rf_inc) % 360.0
 
                     # Slice-selective excitation pulse
-                    batches[batch_num].add_block(rf, gz)
+                    batches[batch_num].add_block(rf, gz), standard_seq.add_block(rf, gz)
 
                     # Slice rephaser and readout pre-phaser
                     phi = delta * (i)
-                    batches[batch_num].add_block(*pp.rotate(gx_pre, angle=phi, axis="z"), gz_reph)
+                    gz_reph_standard = pp.make_trapezoid(channel="z", area=-gz.area *0.5, duration=self.DephTime, system=self.system)
+                    gx_pre_standard = pp.make_trapezoid(channel="x", area=-gx.area * 0.5, duration=self.DephTime, system=self.system)
+                    batches[batch_num].add_block(*pp.rotate(gx_pre, angle=phi, axis="z"), gz_reph), standard_seq.add_block(*pp.rotate(gx_pre_standard, angle=phi, axis="z"), gz_reph_standard)    
 
                     # Wait so readout is centered on TE
-                    batches[batch_num].add_block(pp.make_delay(delay_TE))
+                    batches[batch_num].add_block(pp.make_delay(delay_TE)), standard_seq.add_block(pp.make_delay(delay_TE))
 
                     # Readout gradient, rotated by `phi`
                     if i >= 0:
                         # Real scan, readout gradient + ADC object
-                        batches[batch_num].add_block(*pp.rotate(gx, angle=phi, axis="z"), adc)
+                        batches[batch_num].add_block(*pp.rotate(gx, angle=phi, axis="z"), adc), standard_seq.add_block(*pp.rotate(gx, angle=phi, axis="z"), adc)
                         assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
                         n_rd_points = n_rd_points + self.nPoints[0]
                     else:
                         # Dummy scan, do not add ADC object
-                        batches[batch_num].add_block(*pp.rotate(gx, angle=phi, axis="z"))
+                        batches[batch_num].add_block(*pp.rotate(gx, angle=phi, axis="z")), standard_seq.add_block(*pp.rotate(gx, angle=phi, axis="z"))
 
                     # GX/GZ spoiler gradient, and wait for TR
-                    batches[batch_num].add_block(*pp.rotate(gx_spoil, angle=phi, axis="z"), gz_spoil, pp.make_delay(delay_TR))
+                    batches[batch_num].add_block(*pp.rotate(gx_spoil, angle=phi, axis="z"), gz_spoil, pp.make_delay(delay_TR)), standard_seq.add_block(*pp.rotate(gx_spoil, angle=phi, axis="z"), gz_spoil, pp.make_delay(delay_TR))
             
             (
                 ok,
@@ -478,16 +484,16 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     print("Timing check failed. Error listing follows:")
                     [print(e) for e in error_report]
                 
-                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
+                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = standard_seq.calculate_kspace()
                 deltak_edge = np.linalg.norm(k_traj_adc[:,adc.num_samples-1] - k_traj_adc[:,2*adc.num_samples-1])
                 if deltak_edge >= deltak*1.001: # Allow for small error
                     print(f'Not Nyquist sampled! {deltak / deltak_edge * 100:.1f}% ')
                 else:
                     print(f'Nyquist sampled! {deltak / deltak_edge * 100:.1f}% ')
                 
-                print(batches[batch_num].test_report())
-                batches[batch_num].plot()
-                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
+                print(standard_seq.test_report())
+                standard_seq.plot()
+                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = standard_seq.calculate_kspace()
 
                 plt.figure(10)
                 plt.plot(k_traj[0],k_traj[1],linewidth=1)
@@ -509,7 +515,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                 plt.show()
 
             batches[batch_num].set_definition(key="Name", value="gre_radial")
-            batches[batch_num].set_definition(key="FOV", value=self.fov)
+            standard_seq.set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(f"gre_radial_{batch_num}.seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(f"gre_radial_{batch_num}.seq")
             print(f"gre_radial_{batch_num}.seq ready!")
@@ -517,7 +523,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
 
             # Update the number of acquired ponits in the last batch
             self.n_rd_points_dict[batch_num] = n_rd_points
-            self.lastseq = batches[batch_num]
+            self.lastseq = standard_seq
 
             return 
 
@@ -553,7 +559,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         return True
 
         
-    def sequenceAnalysis(self, mode=None, lambda_tv=0.0):
+    def sequenceAnalysis(self, mode=None, lambda_tv=0.0, seq=None):
         self.mode = mode
         
         #self.axesOrientation = [0,1,2] # for ssfp
@@ -563,7 +569,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
 
         # Get data
         data_full_pre = self.mapVals['data_full']
-        nRD, _, nSL = self.nPoints
+        nRD, _, nSL = self.mapVals['nPoints']
         nRadial = self.mapVals['Nr']
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = self.mapVals['n_batches']
@@ -621,8 +627,10 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
 
         
         # Get images
-        
-        image_ind = recon_nufft_2d(kdata_input, self.lastseq, (nRD, nRD), lambda_tv=lambda_tv)
+        if seq is not None:
+            image_ind = recon_nufft_2d(kdata_input, seq, (nRD, nRD), lambda_tv=lambda_tv)
+        else:
+            image_ind = recon_nufft_2d(kdata_input, self.lastseq, (nRD, nRD), lambda_tv=lambda_tv)
         print(image_ind.shape)
         self.mapVals['iSpace'] = image_ind
         
@@ -778,8 +786,9 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             self.plotResults()
 
         return self.output
- 
-    
+  
+
+
 if __name__ == '__main__':
     seq = GRERadialPSEQ()
     seq.sequenceAtributes()

@@ -64,6 +64,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.fsp_s = None
         self.Nr = None
         self.gx_comp = None
+        self.gz_comp = None
          
         self.addParameter(key='seqName', string='gre', val='gre')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -97,6 +98,8 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='Nr', string='Number of radial readouts', val=1, field='OTH',)
         self.addParameter(key='gx_comp', string='gx_comp', val=0.48, field='OTH',
                           tip="Gradient compensation for readout.") 
+        self.addParameter(key='gz_comp', string='gz_comp', val=0.5, field='OTH',
+                          tip="Gradient compensation for slice.") 
      
 
     def sequenceTime(self):
@@ -244,7 +247,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
             return_gz=True
         )
 
-        gz_reph = pp.make_trapezoid(channel="z", area=-gz.area * 0.5, duration=self.DephTime, system=self.system)
+        gz_reph = pp.make_trapezoid(channel="z", area=-gz.area * self.gz_comp, duration=self.DephTime, system=self.system)
         # Define other gradients and ADC events
         deltak = 1 / self.fovInPlane
         gx = pp.make_trapezoid(channel="x", flat_area=Nx * deltak, flat_time=readout_time, system=self.system)
