@@ -61,8 +61,10 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.etl = None
         self.effEchoTime = None
         self.phaseCycleEx = None
+        self.compReadGrad = None
         self.fsp_r = None
         self.fsp_s = None
+
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -91,6 +93,8 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
+        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=[-10] *8
+                          ,field='OTH')
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=0, field='OTH',
@@ -582,7 +586,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
             
             n_rd_points = 0
             rf_ex_cycle = np.tile(np.array(self.phaseCycleEx), int(np.ceil((n_ex+1) / len(self.phaseCycleEx)))) / 180 * np.pi
-
+            standard_seq = pp.Sequence(system=self.system)
             for k_ex in range(1, n_ex + 1):
                     
                 for s in range(n_slices):
@@ -609,6 +613,8 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                         gr5.waveform = np.zeros_like(gr5.waveform)
                         gr6.waveform = np.zeros_like(gr6.waveform)
                         gr7.waveform = np.zeros_like(gr7.waveform)
+                        self.compReadGrad = np.array(self.compReadGrad)
+                        self.compReadGrad[:] = 0.0
 
                     if self.EnableGrad[2] == 0:
                         gs1.waveform = np.zeros_like(gs1.waveform)
@@ -618,9 +624,9 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                         gs5.waveform = np.zeros_like(gs5.waveform)
                         gs7.waveform = np.zeros_like(gs7.waveform)
 
-                    batches[batch_num].add_block(gs1)
-                    batches[batch_num].add_block(gs2, rf_ex)
-                    batches[batch_num].add_block(gs3, gr3)
+                    batches[batch_num].add_block(gs1), standard_seq.add_block(gs1)
+                    batches[batch_num].add_block(gs2, rf_ex), standard_seq.add_block(gs2, rf_ex)
+                    batches[batch_num].add_block(gs3, gr3), standard_seq.add_block(gs3, gr3)
                     
                     for k_echo in range(n_echo):
 
@@ -643,27 +649,37 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                             duration=t_sp,
                             rise_time=dG,
                         )
+                        # add comp:
+                        gr_comp = pp.make_trapezoid(
+                            channel="x",
+                            system=self.system,
+                            area=self.compReadGrad[k_echo],
+                            duration=t_sp-2*dG,
+                            rise_time=dG,
+                            delay=0
+                        )
+
                         if self.EnableGrad[1] == 0:
                             gp_pre.amplitude = 0
                             gp_rew.amplitude = 0
                         # rf_ref.phase_offset = rf_ref_offset[k_echo]
-                        batches[batch_num].add_block(gs4, rf_ref)
-                        batches[batch_num].add_block(gs5, gr5, gp_pre)
+                        batches[batch_num].add_block(gs4, rf_ref), standard_seq.add_block(gs4, rf_ref)
+                        batches[batch_num].add_block(gs5, pp.add_gradients([gr5,gr_comp] ,system=self.system), gp_pre), standard_seq.add_block(gs5, gr5, gp_pre)
                         if k_ex > 0:
                             adc.freq_offset = gr6.waveform.max() * self.dfov[0] 
                             adc.phase_offset = adc.phase_offset + 2 * np.pi * pe_order[k_echo, k_ex-1] * self.dfov[1] / self.fov[1]
                         
-                            batches[batch_num].add_block(gr6, adc)
+                            batches[batch_num].add_block(gr6, adc), standard_seq.add_block(gr6, adc)
                             assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
                             n_rd_points = n_rd_points + self.nPoints[0]
                         else:
-                            batches[batch_num].add_block(gr6)
+                            batches[batch_num].add_block(gr6), standard_seq.add_block(gr6)
 
-                        batches[batch_num].add_block(gs7, gr7, gp_rew)
+                        batches[batch_num].add_block(gs7, gr7, gp_rew), standard_seq.add_block(gs7, gr7, gp_rew)
 
-                    batches[batch_num].add_block(gs4)
-                    batches[batch_num].add_block(gs5)
-                    batches[batch_num].add_block(delay_TR)
+                    batches[batch_num].add_block(gs4), standard_seq.add_block(gs4)
+                    batches[batch_num].add_block(gs5), standard_seq.add_block(gs5)
+                    batches[batch_num].add_block(delay_TR), standard_seq.add_block(delay_TR)
 
             (
                 ok,
@@ -700,7 +716,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                 # plt.show()
 
             batches[batch_num].set_definition(key="Name", value="tse")
-            batches[batch_num].set_definition(key="FOV", value=self.fov)
+            standard_seq.set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(batch_num + ".seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
             print(f"{batch_num}.seq ready!")
@@ -708,8 +724,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
 
             # Update the number of acquired ponits in the last batch
             self.n_rd_points_dict[batch_num] = n_rd_points
-            self.lastseq = batches[batch_num]
-
+            self.lastseq = standard_seq
             return 
 
         '''
@@ -778,23 +793,16 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         deadTime = self.mapVals['deadTime']*1e-3 # ms
         rfSincExTime = self.mapVals['rfSincExTime']*1e-3 # ms
         tVector = np.linspace(rfSincExTime/2 + deadTime + 0.5/bw, rfSincExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
-        fVector = np.linspace(-bw/2, bw/2, nPoints)
-        spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
-        # hw.larmorFreq=fitedLarmor
-        # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        fwhm=getFHWM(spectrum, fVector, bw)
-        dB0=fwhm*1e6/hw.larmorFreq
+        
+        signal_chunks = signal.reshape(-1, nRD)
 
-        # for sequence in self.sequenceList.values():
-        #     if 'larmorFreq' in sequence.mapVals:
-        #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
-        self.mapVals['larmorFreq'] = hw.larmorFreq
+        fft_chunks = []
+        for chunk in signal_chunks:
+            fft_result = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(chunk)))
+            fft_chunks.append(fft_result)
 
-        # Get the central frequency
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        print('FHWM: %1.5f kHz' % fwhm)
-        print('dB0/B0: %1.5f ppm' % dB0)
+        spectrum = np.concatenate(fft_chunks)
+        fVector = np.arange(len(spectrum))
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
@@ -802,32 +810,32 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,
-                   'yData': [np.abs(signal)],
+                   'yData': [np.real(signal), np.imag(signal)],
                    'xLabel': 'Time (ms)',
                    'yLabel': 'Signal amplitude (a.u.)',
                    'title': 'Signal vs time',
-                   'legend': ['abs'],
+                   'legend': ['real','imag'],
                    'row': 0,
                    'col': 0}
         # Add time signal to the layout
         result2 = {'widget': 'curve',
-                   'xData': tVector,
-                   'yData': [np.angle(signal)],
-                   'xLabel': 'Time (ms)',
-                   'yLabel': 'Phase amplitude (rad)',
-                   'title': 'Phase vs time',
-                   'legend': ['Phase'],
+                   'xData': fVector,
+                   'yData': [np.abs(spectrum)],
+                   'xLabel': 'index',
+                   'yLabel': 'Amplitude',
+                   'title': 'spectrum amplitude',
+                   'legend': ['abs'],
                    'row': 1,
                    'col': 0}
 
         # Add frequency spectrum to the layout
         result3 = {'widget': 'curve',
-                   'xData': tVector,
-                   'yData': [np.real(signal), np.imag(signal)],
-                   'xLabel': 'Time (ms)',
-                   'yLabel': 'Amplitude',
-                   'title': 'Amplitude vs time',
-                   'legend': ['real', 'imag'],
+                   'xData': fVector,
+                   'yData': [np.angle(spectrum)],
+                   'xLabel': 'index',
+                   'yLabel': 'Phase (rad)',
+                   'title': 'spectrum angle',
+                   'legend': ['angle'],
                    'row': 2,
                    'col': 0}
 
@@ -842,7 +850,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultisliceDebugT2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
