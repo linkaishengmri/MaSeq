@@ -64,6 +64,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.compReadGrad = None
         self.fsp_r = None
         self.fsp_s = None
+        self.eddyCurrentComp = None
 
 
         self.addParameter(key='seqName', string='tse', val='tse')
@@ -93,7 +94,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=[-10] *8
+        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=[-10] *9
                           ,field='OTH')
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for readout.")
@@ -103,7 +104,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Enable gradients")
         self.addParameter(key='maxRFP90', string='Max RF90 Sinc(uT)', val=14, field='OTH')
         self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=19, field='OTH')
-        
+        self.addParameter(key='eddyCurrentComp', string='Eddy current compensation', val=1, field='OTH')
         
 
     def sequenceInfo(self):
@@ -171,7 +172,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
             use_multi_freq = True,
             add_rx_points = 0,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=True,
+            use_grad_preemphasis=False if self.eddyCurrentComp == 0 else True,
             grad_preemphasis_coeff={
                         'zz':( (np.array([1.8061, 1.391, 0.2535, -0.0282]) * 1e-2, 
                             np.array([1567, 17510, 167180, 608533] ))),
@@ -332,7 +333,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         agr_spr = gr_spr.area
         agr_preph = gr_acq.area / 2 + agr_spr
         gr_preph = pp.make_trapezoid(
-            channel="x", system=self.system, area=agr_preph, duration=t_spex, rise_time=dG
+            channel="x", system=self.system, area=agr_preph+self.compReadGrad[0], duration=t_spex, rise_time=dG
         )
 
 
@@ -383,6 +384,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
             ]
         )
         gs5_amp = np.array([gs_ref.amplitude, gs_spr.amplitude, gs_spr.amplitude, 0])
+        
         gs5 = pp.make_extended_trapezoid(channel="z", times=gs5_times, amplitudes=gs5_amp)
 
         gs7_times = np.array(
@@ -653,7 +655,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                         gr_comp = pp.make_trapezoid(
                             channel="x",
                             system=self.system,
-                            area=self.compReadGrad[k_echo],
+                            area=self.compReadGrad[k_echo+1],
                             duration=t_sp-2*dG,
                             rise_time=dG,
                             delay=0
@@ -838,9 +840,20 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                    'legend': ['angle'],
                    'row': 2,
                    'col': 0}
+        diff_phase = np.diff(np.angle(spectrum))
+        diff_phase_padded = np.insert(diff_phase, 0, 0)
+        result4 = {'widget': 'curve',
+                   'xData': fVector,
+                   'yData': [diff_phase_padded],
+                   'xLabel': 'index',
+                   'yLabel': 'Diff Phase (rad)',
+                   'title': 'spectrum angle diff',
+                   'legend': ['diff_angle'],
+                   'row': 3,
+                   'col': 0}
 
         # create self.out to run in iterative mode
-        self.output = [result1, result2, result3]
+        self.output = [result1, result2, result3,result4]
         self.saveRawData()
 
         if self.mode == 'Standalone':
@@ -850,7 +863,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultisliceDebugT2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
