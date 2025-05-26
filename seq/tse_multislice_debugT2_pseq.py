@@ -80,7 +80,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
-        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 2.0], units=units.mm, field='IM',
+        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
         self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 8, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
@@ -95,13 +95,13 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=[-10] *9
+        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=[0]*9
                           ,field='OTH')
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for slice.")
-        self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 1, 1], field='OTH',
+        self.addParameter(key='EnableGrad', string='Ena Grad[rd,ph,sl]', val=[1, 0, 1], field='OTH',
                           tip="Enable gradients")
         self.addParameter(key='maxRFP90', string='Max RF90 Sinc(uT)', val=14, field='OTH')
         self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=19, field='OTH')
@@ -251,7 +251,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         Nx, Ny, n_slices = self.nPoints
 
         sampling_time = sampling_period * 1e-6 * self.nPoints[0]
-        readout_time = sampling_time + 2 * self.system.adc_dead_time + self.adcDelayTime
+        readout_time = sampling_time + 2 * self.system.adc_dead_time #+ self.adcDelayTime
         dG=self.riseTime
         t_ex = self.rfSincExTime
         t_exwd = t_ex + self.system.rf_ringdown_time + self.system.rf_dead_time
@@ -323,7 +323,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
             rise_time=dG,
         )
         adc = pp.make_adc(
-            num_samples=Nx, duration=sampling_time, delay=self.adcDelayTime
+            num_samples=Nx, duration=sampling_time, delay=self.system.adc_dead_time#self.adcDelayTime
         )
         gr_spr = pp.make_trapezoid(
             channel="x",
@@ -724,6 +724,8 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
             standard_seq.set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(batch_num + ".seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
+            rx0_en = self.waveforms[batch_num]['rx0_en']
+            self.waveforms[batch_num]['rx0_en'] = (rx0_en[0] + self.adcDelayTime*1e6, rx0_en[1])
             print(f"{batch_num}.seq ready!")
             print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
 
@@ -866,7 +868,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultisliceDebugT2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

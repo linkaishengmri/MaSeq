@@ -64,6 +64,7 @@ class TSEMultisliceT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.phaseCycleEx = None
         self.fsp_r = None
         self.fsp_s = None
+        self.adcDelayTime = None
 
         
         self.addParameter(key='seqName', string='tse', val='tse')
@@ -80,7 +81,7 @@ class TSEMultisliceT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 256, 10], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[256, 16, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.33333333333333333333333, units=units.kHz, field='IM',
@@ -99,7 +100,8 @@ class TSEMultisliceT2PSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for slice.")  
-
+        self.addParameter(key='adcDelayTime', string='ADC delay time (us)', val=180, units=units.us, field='OTH')
+        
      
 
     def sequenceTime(self):
@@ -694,6 +696,9 @@ class TSEMultisliceT2PSEQ(blankSeq.MRIBLANKSEQ):
             standard_seq.set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(batch_num + ".seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
+            rx0_en = self.waveforms[batch_num]['rx0_en']
+            self.waveforms[batch_num]['rx0_en'] = (rx0_en[0] + self.adcDelayTime*1e6, rx0_en[1])
+            
             print(f"{batch_num}.seq ready!")
             print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
 
