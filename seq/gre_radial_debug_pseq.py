@@ -65,7 +65,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.Nr = None
         self.gx_comp = None
         self.gz_comp = None
-         
+        self.compReadGrad = None
         self.addParameter(key='seqName', string='gre', val='gre')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53380, units=units.MHz, field='IM')
@@ -95,11 +95,13 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
                           tip="Gradient spoiling for slice.")
-        self.addParameter(key='Nr', string='Number of radial readouts', val=1, field='OTH',)
-        self.addParameter(key='gx_comp', string='gx_comp', val=0.49, field='OTH',
+        self.addParameter(key='Nr', string='Number of radial readouts', val=10, field='OTH',)
+        self.addParameter(key='gx_comp', string='gx_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for readout.") 
         self.addParameter(key='gz_comp', string='gz_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for slice.") 
+        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=-10, field='OTH')
+        
      
 
     def sequenceTime(self):
@@ -252,7 +254,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         deltak = 1 / self.fovInPlane
         gx = pp.make_trapezoid(channel="x", flat_area=Nx * deltak, flat_time=readout_time, system=self.system)
         adc = pp.make_adc(num_samples=Nx, duration=gx.flat_time, delay=gx.rise_time, system=self.system)
-        gx_pre = pp.make_trapezoid(channel="x", area=-gx.area * self.gx_comp, duration=self.DephTime, system=self.system)
+        gx_pre = pp.make_trapezoid(channel="x", area=-gx.area * self.gx_comp + self.compReadGrad, duration=self.DephTime, system=self.system)
 
         # Gradient spoiling
         gx_spoil = pp.make_trapezoid(channel="x", area=self.fsp_r * Nx * deltak, duration=self.DephTime, system=self.system)
@@ -575,6 +577,8 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
          # Get data
         data_full_pre = self.mapVals['data_full']
         nRD, nPH, nSL = self.nPoints
+        nRadial = self.mapVals['Nr']
+
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = self.mapVals['n_batches']
 
@@ -587,30 +591,19 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         signal = np.reshape(data_full,newshape=(-1) )
 
         bw = self.mapVals['bw_MHz']*1e3 # kHz
-        nPoints = self.mapVals['nPoints'][0]
+        nPoints = self.mapVals['nPoints'][0] * nRadial
         # deadTime = self.mapVals['deadTime']*1e-3 # ms
         rfSincExTime = self.mapVals['rfSincExTime']*1e-3 # ms
         tVector = np.linspace(rfSincExTime/2 + 0 + 0.5/bw, rfSincExTime/2  + (nPoints-0.5)/bw, nPoints)
-        fVector = np.linspace(-bw/2, bw/2, nPoints)
-        spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
-        # hw.larmorFreq=fitedLarmor
-        # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        fwhm=getFHWM(spectrum, fVector, bw)
-        dB0=fwhm*1e6/hw.larmorFreq
+        signal_chunks = signal.reshape(-1, nRD)
 
-        # for sequence in self.sequenceList.values():
-        #     if 'larmorFreq' in sequence.mapVals:
-        #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
-        self.mapVals['larmorFreq'] = hw.larmorFreq
+        fft_chunks = []
+        for chunk in signal_chunks:
+            fft_result = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(chunk)))
+            fft_chunks.append(fft_result)
 
-        # Get the central frequency
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        print('FHWM: %1.5f kHz' % fwhm)
-        print('dB0/B0: %1.5f ppm' % dB0)
-
-        self.mapVals['signalVStime'] = [tVector, signal]
-        self.mapVals['spectrum'] = [fVector, spectrum]
+        spectrum = np.concatenate(fft_chunks)
+        fVector = np.arange(len(spectrum))
 
         # find the max arg of abs(signal), and judge if it is in the center of the signal
         print(f'signal max index: {np.abs(signal).argmax()}/{len(signal)}, val={np.max(np.abs(signal))}')
@@ -618,27 +611,48 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,
-                   'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
+                   'yData': [np.real(signal), np.imag(signal)],
                    'xLabel': 'Time (ms)',
-                   'yLabel': 'Signal amplitude (mV)',
+                   'yLabel': 'Signal amplitude (a.u.)',
                    'title': 'Signal vs time',
-                   'legend': ['abs', 'real', 'imag'],
+                   'legend': ['real','imag'],
                    'row': 0,
                    'col': 0}
-
-        # Add frequency spectrum to the layout
+        # Add time signal to the layout
         result2 = {'widget': 'curve',
                    'xData': fVector,
-                   'yData': [spectrum],
-                   'xLabel': 'Frequency (kHz)',
-                   'yLabel': 'Spectrum amplitude (a.u.)',
-                   'title': 'Spectrum',
-                   'legend': [''],
+                   'yData': [np.abs(spectrum)],
+                   'xLabel': 'index',
+                   'yLabel': 'Amplitude',
+                   'title': 'spectrum amplitude',
+                   'legend': ['abs'],
                    'row': 1,
                    'col': 0}
 
+        # Add frequency spectrum to the layout
+        result3 = {'widget': 'curve',
+                   'xData': fVector,
+                   'yData': [np.angle(spectrum)],
+                   'xLabel': 'index',
+                   'yLabel': 'Phase (rad)',
+                   'title': 'spectrum angle',
+                   'legend': ['angle'],
+                   'row': 2,
+                   'col': 0}
+        diff_phase = np.diff(np.angle(spectrum))
+        diff_phase_padded = np.insert(diff_phase, 0, 0)
+        result4 = {'widget': 'curve',
+                   'xData': fVector,
+                   'yData': [diff_phase_padded],
+                   'xLabel': 'index',
+                   'yLabel': 'Diff Phase (rad)',
+                   'title': 'spectrum angle diff',
+                   'legend': ['diff_angle'],
+                   'row': 3,
+                   'col': 0}
+
         # create self.out to run in iterative mode
-        self.output = [result1]
+        self.output = [result1, result2, result3, result4]
         self.saveRawData()
 
         if self.mode == 'Standalone':

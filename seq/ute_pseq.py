@@ -1,13 +1,14 @@
 """
-Created on Sunday, April 27th 2025
+Created on Tuesday, Nov 22nd 2024
+@author: Dr. J.M. Algarín, MRILab, i3M, CSIC, Valencia, Spain
 @author: Kaisheng Lin, School of Electronics, Peking University, China
-@Summary: GRE sequence with radial sampling strategy, implemented with PyPulseq and compatible with MaSeq.
+@Summary: GRE sequence (FLASH), implemented with PyPulseq and compatible with MaSeq.
 """
 
 import os
 import sys
 import matplotlib.pyplot as plt
-import warnings
+
 
 #*****************************************************************************
 # Get the directory of the current script
@@ -23,8 +24,6 @@ for subdir in subdirs:
     full_path = os.path.join(parent_directory, subdir)
     sys.path.append(full_path)
 #******************************************************************************
-from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils, recon_nufft_2d
-import math
 import pypulseq as pp
 import numpy as np
 import seq.mriBlankSeq as blankSeq   
@@ -34,11 +33,11 @@ import experiment_multifreq as ex
 import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
-# 8246716884 /122.88 = 67,111,953 us
-# 9465307104
-class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
+from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
+
+class UTEPSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(GRERadialPSEQ, self).__init__()
+        super(UTEPSEQ, self).__init__()
         # Input the parameters
         self.output = None
         self.expt = None
@@ -53,65 +52,54 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         self.nPoints = None
         self.axesOrientation = None
         self.dummyPulses = None
-        self.riseTime = None
         self.bandwidth = None
         self.DephTime = None
         self.shimming = None
         self.thickness = None
         self.sliceGap = None
+        self.gradSpoil = None
         self.RFSpoilPhase = None
-        self.fsp_r = None
-        self.fsp_s = None
-        self.gx_comp = None
-        self.gz_comp = None
-         
-        self.addParameter(key='seqName', string='gre', val='gre')
+        self.phaseGradSpoilMode = None
+
+        self.addParameter(key='seqName', string='flash', val='flash')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53487, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33320, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=7.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=9.0, units=units.ms, field='SEQ')
+        self.addParameter(key='fovInPlane', string='FOV[Rd,Ph] (mm)', val=[100, 100], units=units.mm, field='IM')
+        self.addParameter(key='thickness', string='Slice thickness (mm)', val=4, units=units.mm, field='IM')
+        self.addParameter(key='sliceGap', string='slice gap (mm)', val=1, units=units.mm, field='IM')
         
-        self.addParameter(key='fovInPlane', string='FOV (mm)', val=256, units=units.mm, field='IM')
-        self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
-        self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, -, sl]', val=[128, 128, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[128, 128, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=0, field='SEQ')
-        
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.3333333333333333, units=units.kHz, field='IM',
-                          tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
-        self.addParameter(key='DephTime', string='Dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
-        self.addParameter(key='riseTime', string='Grad. rising time (ms)', val=0.25, units=units.ms, field='OTH')
-        self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
+        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.333333333333333333, units=units.kHz, field='IM',
+                          tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
+        self.addParameter(key='DephTime', string='dephasing time (ms)', val=2.0, units=units.ms, field='OTH')
+        self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.002, 0.0015], field='SEQ')
+        self.addParameter(key='gradSpoil', string='Gradient Spoiling', val=6, field='OTH',
+                          tip='4 times of frequency encoding gradient is recommended')
         self.addParameter(key='RFSpoilPhase', string='RF Spoiling Phase', val=117, field='OTH',
                           tip='117 deg is recommended')
-        self.addParameter(key='fsp_r', string='Readout Spoiling', val=0.5, field='OTH',
-                          tip="Gradient spoiling for readout.")
-        self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
-                          tip="Gradient spoiling for slice.")
-        self.addParameter(key='gx_comp', string='gx_comp', val=0.47, field='OTH',
-                          tip="Gradient compensation for readout.") 
-        self.addParameter(key='gz_comp', string='gz_comp', val=0.5, field='OTH',
-                          tip="Gradient compensation for slice.") 
-     
-     
+        self.addParameter(key='phaseGradSpoilMode', string='Phase Encoding Spoiling', val=1, field='OTH',
+                          tip='0: Without phase spoiling, 1: with phase spoiling.')
+ 
+    def sequenceInfo(self):
+        print("Multi-slice flash sequence")
+        print("Author: Mr. Lin")        
 
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * 
-                self.mapVals['nScans'] *
-                (math.ceil(self.mapVals['nPoints'][0]/2 * np.pi)-1) / 60)
+                self.mapVals['nScans'] * self.mapVals['nPoints'][2] *
+                (self.mapVals['nPoints'][1] + self.mapVals['dummyPulses']) / 60)
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
-
-        # Convert files to a list
-        # self.files = self.files.strip('[]').split(',')
-        # self.files = [s.strip() for s in self.files]
 
     def sequenceRun(self, plotSeq=0, demo=False, standalone=False):
         init_gpa = False
@@ -128,9 +116,10 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
 
         # Reorder slices for an interleaved acquisition (optional)
         slice_positions = slice_positions[slice_idx]
-        
+
         # redefine fov using slice thickness and gap
-        self.fov = [self.fovInPlane, self.fovInPlane, np.max(slice_positions)-np.min(slice_positions)+self.thickness]       
+        self.fov = [self.fovInPlane[0], self.fovInPlane[1], np.max(slice_positions)-np.min(slice_positions)+self.thickness]       
+
         
         '''
         Step 1: Define the interpreter for FloSeq/PSInterpreter.
@@ -139,10 +128,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         '''
 
         max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
-        rfExTime_us = int(np.round(self.rfSincExTime * 1e6))
-        assert rfExTime_us in hw.max_sinc_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
-        max_rf_Hz = hw.max_sinc_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
-        
+        max_rf_Hz = hw.max_rf * 1e-6 * hw.gammaB
         self.flo_interpreter = PseqInterpreter(
             tx_warmup=hw.blkTime,  # Transmit chain warm-up time (us)
             rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
@@ -152,16 +138,15 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             orientation=self.axesOrientation, # gradient orientation
             grad_eff=hw.gradFactor, # gradient coefficient of efficiency
             use_multi_freq = True,
-            add_rx_points = 0,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=True,
+            use_grad_preemphasis=False,
             grad_preemphasis_coeff={
-                        'zz':( (np.array([1.8061, 1.391, 0.2535, -0.0282]) * 1e-2, 
-                            np.array([1567, 17510, 167180, 608533] ))),
-                        'xx':( (np.array([-0.3031, 0.0782, 0.0227, 0.0]) * 1e-2,
-                            np.array([2537, 87749, 986942, 0.1] ))),
-                        'yy':( (np.array([1.7434, 2.0108, 0.4076, -0.1527]) *1e-2,
-                            np.array([2151, 24193, 321545, 989703] ))),
+                        'xx':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]), 
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'yy':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
+                        'zz':( (np.array([0.383494796, 0.159428847, 0.06601789, 0.03040273]),
+                            np.array([384.543433, 4353.01123, 46948.52793, 485123.9174] ))),
                  },
             use_fir_decimation = (self.bandwidth < 30.007326007326007e3), # 30kHz
         )
@@ -172,20 +157,16 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         slew rates, and dead times. They are typically set based on the hardware configuration file (`hw_config`).
         '''
         self.system = pp.Opts(
-            rf_dead_time=100 * 1e-6,  # Dead time between RF pulses (s)
-            max_grad=38,  # Maximum gradient strength (mT/m)
+            rf_dead_time=hw.blkTime * 1e-6,  # Dead time between RF pulses (s)
+            max_grad=20,  # Maximum gradient strength (mT/m)
             grad_unit='mT/m',  # Units of gradient strength
             max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
             slew_unit='mT/m/ms',  # Units of gradient slew rate
-            grad_raster_time=hw.grad_raster_time, # hw.grad_raster_time,  # Gradient raster time (s)
+            grad_raster_time=hw.grad_raster_time,  # Gradient raster time (s)
             rise_time=hw.grad_rise_time,  # Gradient rise time (s)
             rf_raster_time=10e-6,
             block_duration_raster=1e-6,
-            adc_raster_time=1/(122.88e6),
-            adc_dead_time=0e-6,
-            rf_ringdown_time=100e-6,
-            
-
+            adc_raster_time=1/(122.88e6)
         )
 
         '''
@@ -195,7 +176,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         '''
 
         bw = self.bandwidth * 1e-6 # MHz
-        bw_ov = self.bandwidth * 1e-6 # - hw.oversamplingFactor  # MHz
+        bw_ov = bw 
         sampling_period = 1 / bw_ov  # us, Dwell time
 
         '''
@@ -223,72 +204,63 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         Step 5: Define sequence blocks.
         In this step, you will define the building blocks of the MRI sequence, including the RF pulses and gradient pulses.
         '''
-        TE = self.echoTime
-        TR = self.repetitionTime
-        N_dummy = self.dummyPulses
-        
-        rf_spoiling_inc = self.RFSpoilPhase
-          
-        Nx, Ny, n_slices = self.nPoints
-        Nr = (math.ceil(Nx / 2 * np.pi) - 1)
-        delta = np.pi / Nr
-        sampling_time = sampling_period * 1e-6 * self.nPoints[0]
-        readout_time = sampling_time + 2 * self.system.adc_dead_time
-        
+
         rf, gz, _ = pp.make_sinc_pulse(
             flip_angle=self.rfExFA * np.pi / 180,
             duration=self.rfSincExTime,
             slice_thickness=self.thickness,
-            apodization=0.5,
+            apodization=0.42,
             time_bw_product=4,
             system=self.system,
-            phase_offset= np.pi / 2,
-            return_gz=True
+            return_gz=True,
         )
 
-        gz_reph = pp.make_trapezoid(channel="z", area=-gz.area * self.gz_comp, duration=self.DephTime, system=self.system)
+        Nx, Ny, _ = self.nPoints
+        readout_duration = sampling_period * 1e-6 * Nx
+        pe_duration = self.DephTime
+        TE = self.echoTime
+        TR = self.repetitionTime
+
         # Define other gradients and ADC events
-        deltak = 1 / self.fovInPlane
-        gx = pp.make_trapezoid(channel="x", flat_area=Nx * deltak, flat_time=readout_time, system=self.system)
-        adc = pp.make_adc(num_samples=Nx, duration=gx.flat_time, delay=gx.rise_time, system=self.system)
-        gx_pre = pp.make_trapezoid(channel="x", area=-gx.area * self.gx_comp, duration=self.DephTime, system=self.system)
+        deltak = 1 / self.fov[0] , 1 / self.fov[1], 1 / self.fov[2]
+        gx = pp.make_trapezoid(
+            channel="x", flat_area=Nx * deltak[0], flat_time=readout_duration, system=self.system
+        )
+        adc = pp.make_adc(num_samples=Nx, duration=gx.flat_time, delay=gx.rise_time)
+        gx_pre = pp.make_trapezoid(channel="x", area=-gx.area / 2, duration=pe_duration, system=self.system)
+        phase_areas = ((np.arange(Ny) - Ny // 2) * deltak[1])
 
-        # Gradient spoiling
-        gx_spoil = pp.make_trapezoid(channel="x", area=self.fsp_r * Nx * deltak, duration=self.DephTime, system=self.system)
-        gz_spoil = pp.make_trapezoid(channel="z", area=self.fsp_s / self.thickness, duration=self.DephTime, system=self.system)
-
+        spoil_area = self.gradSpoil * gx.area
+        gx_post = pp.make_trapezoid(channel="x", area=spoil_area, system=self.system)
+        if self.phaseGradSpoilMode == 0:
+            gy_post = pp.make_trapezoid(channel="y", area=-np.max(phase_areas), duration=pe_duration, system=self.system)
+        else:
+            gy_post = pp.make_trapezoid(channel="y", area=spoil_area, system=self.system)
+        gz_post = pp.make_trapezoid(channel="z", area=spoil_area, system=self.system)
+        
+        def round_to_raster_time(value, raster_time):
+            """Round a given time value to the nearest raster time."""
+            return np.round(value / raster_time) * raster_time
         
         # Calculate timing
-        delay_TE = (
-            np.ceil(
-                (
-                    TE
-                    - (pp.calc_duration(gz, rf) - pp.calc_rf_center(rf)[0] - rf.delay)
-                    - pp.calc_duration(gx_pre, gz_reph)
-                    - pp.calc_duration(gx) / 2
-                    - pp.eps
-                )
-                / self.system.grad_raster_time
-            )
-            * self.system.grad_raster_time
+        delay_te = round_to_raster_time(
+            TE - pp.calc_duration(gx_pre) 
+            - pp.calc_duration(gz) / 2 
+            - pp.calc_duration(gx) / 2,
+            self.system.grad_raster_time,
         )
-
-        delay_TR = (
-            np.ceil(
-                (
-                    TR
-                    - pp.calc_duration(gz, rf)
-                    - pp.calc_duration(gx_pre, gz_reph)
-                    - pp.calc_duration(gx)
-                    - delay_TE
-                )
-                / self.system.grad_raster_time
-            )
-            * self.system.grad_raster_time
+        delay_tr = round_to_raster_time(
+            TR +(- pp.calc_duration(gx_pre) 
+                 - pp.calc_duration(gz) 
+                 - pp.calc_duration(gx) 
+                 - pp.calc_duration(gx_post, gy_post, gz_post)
+                 - delay_te) *1,
+            self.system.grad_raster_time,
         )
-        assert delay_TE >= 0, f"delay_TE '{delay_TE}' should be greater than 0."
-        
-        assert delay_TR >= pp.calc_duration(gx_spoil, gz_spoil), f"delay_TR '{delay_TR}' should be greater than spoil time {gx_spoil}, {gz_spoil}."
+ 
+        # Exercises: Possible that you need to comment out these
+        assert delay_te >= 0
+        assert delay_tr >= 0
         
 
         def runBatches_pseq(waveforms, n_readouts, frequency=hw.larmorFreq, bandwidth=0.03):
@@ -328,14 +300,13 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             # Initialize a list to hold oversampled data
             data_over = []
             real_bandwidth = bandwidth * self.flo_interpreter._fir_decimation_rate 
-            
             # Iterate through each batch of waveforms
             for seq_num in waveforms.keys():
                 # Initialize the experiment if not in demo mode
                 if not self.demo:
                     self.expt = ex.ExperimentMultiFreq(
                         lo_freq=frequency,  # Larmor frequency in MHz
-                        rx_t=1 / real_bandwidth,  # Sampling time in us
+                        rx_t=(1 / real_bandwidth),  # Sampling time in us with fir decimation rate of 3
                         init_gpa=False,  # Whether to initialize GPA board (False for now)
                         gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
                         auto_leds=True,  # Automatic control of LEDs
@@ -352,8 +323,6 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                 else:
                     encoding_ok = True
                     # print("Sequence waveforms loaded successfully")
-                if self.plotSeq and not self.demo:
-                    self.expt.plot_sequence()
 
                 # If not plotting the sequence, start scanning
                 if not self.plotSeq:
@@ -368,14 +337,10 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                                 rxd, msgs = self.expt.run()  # Run the experiment and collect data
                             else:
                                 # In demo mode, generate random data as a placeholder
-                                rxd = {'rx0': np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
+                                rxd = {'rx0': np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
                             
                             # Update acquired points
-                            self.rxChName = 'rx0'
-                            rx_raw_data = rxd[self.rxChName]
-                            rxdata = self.flo_interpreter.rx_points_added_for_img(rx_raw_data, self.nPoints[0])
-                            rxdata = np.reshape(rxdata, newshape=(-1))
-                            acquired_points = np.size(rxdata)
+                            acquired_points = np.size(rxd['rx0'])
 
                             # Check if acquired points coincide with expected points
                             if acquired_points != expected_points:
@@ -383,7 +348,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                                 print("Repeating batch...")
 
                         # Concatenate acquired data into the oversampled data array
-                        data_over = np.concatenate((data_over, rxdata), axis=0)
+                        data_over = np.concatenate((data_over, rxd['rx0']), axis=0)
                         print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
                         print(f"Scan {scan + 1}, batch {seq_num[-1]}/{1} ready!")
 
@@ -405,7 +370,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         batches = {}
         n_rd_points_dict = {}  # Dictionary to track readout points for each batch
         n_rd_points = 0
-        batch_idx = 1 # In this sequence, batch_idx is equivalent to the index of slice coding index 
+        batch_idx = 1 # In this sequence, batch_idx is always 1
 
         
         '''
@@ -428,72 +393,72 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             """
             
             n_rd_points = 0
-            rf_phase = 0
-            rf_inc = 0
-            standard_seq = pp.Sequence(system=self.system)
-            for s in range(n_slices):    
-                # slice offset
-                rf_freq_offset_slice = gz.amplitude * slice_positions[s]
-                rf_phase_offset_slice = 0 - 2 * np.pi * rf.freq_offset * pp.calc_rf_center(rf)[0]
-                adc_phase_offset_slice = rf_phase_offset_slice
-                for i in range(-N_dummy, Nr):
-                     
+           
 
-                    # Set RF/ADC freq/phase for RF spoiling, and increment RF phase
-                    rf.freq_offset = rf_freq_offset_slice
-                    rf.phase_offset = rf_phase / 180 * np.pi + rf_phase_offset_slice
-                    adc.phase_offset = rf_phase / 180 * np.pi + adc_phase_offset_slice
+            batch_num = f"batch_{batch_idx}"  # Initial batch name
+            print(f"Creating {batch_num}.seq...")
+            batches[batch_num] = pp.Sequence(system=self.system)
 
-                    rf_inc = (rf_inc + rf_spoiling_inc) % 360.0
-                    rf_phase = (rf_phase + rf_inc) % 360.0
+            for Cz in range(self.nPoints[2]):
+           
+                for Cy in range(-self.dummyPulses, self.nPoints[1]):
+                    # In a single slice, rd points must be less than hw.maxRdPoints
+                    
+                    if Cy >= 0:
+                        assert n_rd_points + self.nPoints[0] <= hw.maxRdPoints
+                        n_rd_points = n_rd_points +  self.nPoints[0]
+                    
+                        # RF offset here 
+                        rand_phase = (self.RFSpoilPhase * (Cy ** 2 + Cy + 2) % 360) * np.pi / 180
 
-                    # Slice-selective excitation pulse
-                    batches[batch_num].add_block(rf, gz), standard_seq.add_block(rf, gz)
+                        rf.freq_offset=gz.amplitude*slice_positions[Cz]
+                        rf.phase_offset=rand_phase-2*np.pi*rf.freq_offset*pp.calc_rf_center(rf)[0] # compensate for the slice-offset induced phase
+                        
+                        # RF excitation and slice/slab selection gradient
+                        batches[batch_num].add_block(rf, gz)
 
-                    # Slice rephaser and readout pre-phaser
-                    phi = delta * (i)
-                    gz_reph_standard = pp.make_trapezoid(channel="z", area=-gz.area *0.5, duration=self.DephTime, system=self.system)
-                    gx_pre_standard = pp.make_trapezoid(channel="x", area=-gx.area * 0.5, duration=self.DephTime, system=self.system)
-                    batches[batch_num].add_block(*pp.rotate(gx_pre, angle=phi, axis="z"), gz_reph), standard_seq.add_block(*pp.rotate(gx_pre_standard, angle=phi, axis="z"), gz_reph_standard)    
+                        if Cy >= 0:
+                            gy_pre = pp.make_trapezoid(channel="y", area=phase_areas[Cy], duration=self.DephTime, system=self.system)
+                        else:
+                            gy_pre = pp.make_trapezoid(channel="y", area=0, duration=self.DephTime, system=self.system)
+                        gz_pre = pp.make_trapezoid(channel="z", area= -gz.area / 2, duration=self.DephTime, system=self.system)
 
-                    # Wait so readout is centered on TE
-                    batches[batch_num].add_block(pp.make_delay(delay_TE)), standard_seq.add_block(pp.make_delay(delay_TE))
-
-                    # Readout gradient, rotated by `phi`
-                    if i >= 0:
-                        # Real scan, readout gradient + ADC object
-                        batches[batch_num].add_block(*pp.rotate(gx, angle=phi, axis="z"), adc), standard_seq.add_block(*pp.rotate(gx, angle=phi, axis="z"), adc)
-                        assert n_rd_points + self.nPoints[0] < hw.maxRdPoints
-                        n_rd_points = n_rd_points + self.nPoints[0]
-                    else:
-                        # Dummy scan, do not add ADC object
-                        batches[batch_num].add_block(*pp.rotate(gx, angle=phi, axis="z")), standard_seq.add_block(*pp.rotate(gx, angle=phi, axis="z"))
-
-                    # GX/GZ spoiler gradient, and wait for TR
-                    batches[batch_num].add_block(*pp.rotate(gx_spoil, angle=phi, axis="z"), gz_spoil, pp.make_delay(delay_TR)), standard_seq.add_block(*pp.rotate(gx_spoil, angle=phi, axis="z"), gz_spoil, pp.make_delay(delay_TR))
+                        batches[batch_num].add_block(gx_pre, gy_pre, gz_pre)
+                        batches[batch_num].add_block(pp.make_delay(delay_te))
             
-            (
-                ok,
-                error_report,
-            ) = batches[batch_num].check_timing()  # Check whether the timing of the sequence is correct
-            
+                        # Make receiver phase follow transmitter phase
+                        adc = pp.make_adc(
+                            num_samples=Nx,
+                            duration=gx.flat_time,
+                            delay=gx.rise_time,
+                            phase_offset=rand_phase, # set phase offset
+                        )
+                        # adc.freq_offset=rf.freq_offset
+                        adc.freq_offset = gx.amplitude * self.dfov[0] 
+                        adc.phase_offset = adc.phase_offset + 2 * np.pi * Cy * self.dfov[1] / self.fov[1]
+                        if Cy >= 0:  # Negative index -- dummy scans
+                            batches[batch_num].add_block(gx, adc)
+                        else:
+                            batches[batch_num].add_block(gx)
+                        
+                        if self.phaseGradSpoilMode == 0:
+                            gy_post = pp.make_trapezoid(channel="y", area=-gy_pre.area, duration=pe_duration, system=self.system)
+                        else:
+                            gy_post = pp.make_trapezoid(channel="y", area=spoil_area, system=self.system) 
+                        batches[batch_num].add_block(gx_post, gy_post, gz_post)
+                        batches[batch_num].add_block(pp.make_delay(delay_tr))
+
+            # Check whether the timing of the sequence is correct
+            ok, error_report = batches[batch_num].check_timing()
+            if ok:
+                print("Timing check passed successfully")
+            else:
+                print("Timing check failed. Error listing follows:")
+                [print(e) for e in error_report]
+            print(batches[batch_num].test_report())
             if plotSeq:
-                if ok:
-                    print("Timing check passed successfully")
-                else:
-                    print("Timing check failed. Error listing follows:")
-                    [print(e) for e in error_report]
-                
-                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = standard_seq.calculate_kspace()
-                deltak_edge = np.linalg.norm(k_traj_adc[:,adc.num_samples-1] - k_traj_adc[:,2*adc.num_samples-1])
-                if deltak_edge >= deltak*1.001: # Allow for small error
-                    print(f'Not Nyquist sampled! {deltak / deltak_edge * 100:.1f}% ')
-                else:
-                    print(f'Nyquist sampled! {deltak / deltak_edge * 100:.1f}% ')
-                
-                print(standard_seq.test_report())
-                standard_seq.plot()
-                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = standard_seq.calculate_kspace()
+                batches[batch_num].plot()
+                k_traj_adc, k_traj, t_excitation, t_refocusing, t_adc = batches[batch_num].calculate_kspace()
 
                 plt.figure(10)
                 plt.plot(k_traj[0],k_traj[1],linewidth=1)
@@ -505,26 +470,21 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                 plt.plot(t_adc, k_traj_adc.T, linewidth=1)
                 plt.xlabel("Time of acqusition (s)")
                 plt.ylabel("Phase")
-                
-                plt.figure(12)
-                t = np.linspace(0, 1, k_traj_adc.shape[1])  # 归一化时间
-                plt.scatter(k_traj_adc[0], k_traj_adc[1], c=t, cmap='viridis', s=2)  # 用颜色表示时间
-                plt.axis("equal")
-                plt.colorbar(label='Normalized Time')  # 添加颜色条
-                plt.title("k-space trajectory (kx/ky) with Gradient")
                 plt.show()
 
-            batches[batch_num].set_definition(key="Name", value="gre_radial")
-            standard_seq.set_definition(key="FOV", value=self.fov)
-            batches[batch_num].write(f"gre_radial_{batch_num}.seq")
-            self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(f"gre_radial_{batch_num}.seq")
-            print(f"gre_radial_{batch_num}.seq ready!")
+
+            
+            batches[batch_num].set_definition(key="Name", value="flash")
+            batches[batch_num].set_definition(key="FOV", value=self.fov)
+            batches[batch_num].write(batch_num + ".seq")
+            # print(n_rd_points)
+            self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
+            print(f"{batch_num}.seq ready!")
             print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
 
             # Update the number of acquired ponits in the last batch
             self.n_rd_points_dict[batch_num] = n_rd_points
-            self.lastseq = standard_seq
-
+            self.lastseq = batches[batch_num]
             return 
 
         '''
@@ -534,16 +494,13 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         '''
         self.waveforms = {}  # Dictionary to store generated waveforms
         self.n_rd_points_dict = {}
-        # self.rf_slice_freq_offset = []
+        self.rf_slice_freq_offset = []
         self.mapVals['data_full'] = []
         
-            
-        batch_num = f"batch_{batch_idx}"  # Initial batch name
-        print(f"Creating {batch_num}.seq...")
-        batches[batch_num] = pp.Sequence(system=self.system)
-
         createBatches()
-
+        
+        # run batches (one batch represent one slice)
+        
         batches_list = [{key: value} for key, value in self.waveforms.items()]
         n_rd_points_list = [{key: value} for key, value in self.n_rd_points_dict.items()]
         
@@ -552,37 +509,39 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                             frequency=(self.larmorFreq)*1e-6 ,  # MHz
                             bandwidth=bw_ov,  # MHz
                             )
-            
+        
         self.mapVals['n_readouts'] = list(self.n_rd_points_dict.values())
         self.mapVals['n_batches'] = 1
-        self.mapVals['Nr'] = Nr
+
         return True
 
         
-    def sequenceAnalysis(self, mode=None, lambda_tv=0.0, seq=None):
+ 
+    def sequenceAnalysis(self, mode=None):
         self.mode = mode
-        
+        self.etl = 1 # for ssfp
         #self.axesOrientation = [0,1,2] # for ssfp
         self.unlock_orientation = 0 # for ssfp
         resolution = self.fov / self.nPoints
         self.mapVals['resolution'] = resolution
 
-        # Get data
-        data_full_pre = self.mapVals['data_full']
-        nRD, _, nSL = self.mapVals['nPoints']
-        nRadial = self.mapVals['Nr']
+        nRD, nPH, nSL = self.nPoints
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = self.mapVals['n_batches']
 
+        # Get data
+        data_full_pre = self.mapVals['data_full']
+        
         # fir decimator
         if self.flo_interpreter._fir_decimation_rate > 1:
             data_waiting_for_fir = np.reshape(data_full_pre, newshape=(-1, self.flo_interpreter._fir_decimation_rate * nRD))
             data_full = self.flo_interpreter.fir_decimator(input_matrix=data_waiting_for_fir, decimation_rate=3)
         else:
             data_full = data_full_pre
+        
 
         # Reorganize data_full
-        data_prov = np.zeros([self.nScans, nRD * nRadial * nSL], dtype=complex)
+        data_prov = np.zeros([self.nScans, nRD * nPH * nSL * self.etl], dtype=complex)
         if n_batches > 1:
             n_rds = self.mapVals['n_readouts']
             data_full_a = data_full[0:sum(n_rds[0:-1]) * self.nScans]
@@ -610,28 +569,35 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         data_full = np.reshape(data_full, newshape=(self.nScans, -1))
         data = np.average(data_full, axis=0)
         self.mapVals['data'] = data
+        
 
+
+        # Original methods to reconstruct:
         # slice_idx = self.mapVals['sliceIdx']
-        n_ex = nRadial
+        # data_arrange_slice = np.zeros(shape=(nSL, nPH, nRD), dtype=complex)
+        # data_shape = np.reshape(data, newshape=(nPH, nSL, nRD))
+        # for s_i in range(nSL):
+        #     data_arrange_slice[slice_idx[s_i], :, :] = data_shape[:, s_i, :]
+
+        # data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
+        # data_ind = data_ind[:, :, :, hw.addRdPoints: nRD - hw.addRdPoints]
+        # self.mapVals['kSpace'] = data_ind
+        
+
+        # sort method to reconstruct:
+        n_ex = int(np.floor(self.nPoints[1]))
         data_shape = np.reshape(data, newshape=(n_ex, nSL, 1, nRD))
         
         kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
-        data_ind = np.reshape(kdata_input, newshape=(1, nSL, nRadial, nRD))
+        data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq, shape=(nSL, nPH, nRD))
+        data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
         self.mapVals['kSpace'] = data_ind
-     
-        # plot #0 slice: #####################################
-        # first_slice_kspace = np.reshape(data_ind[0, 0, :, :], newshape=(nPH, nRD))
-        # plot_nd(first_slice_kspace, vmax=10)
-        # plt.title('K-space')
-        ######################################################
 
-        
         # Get images
-        if seq is not None:
-            image_ind = recon_nufft_2d(kdata_input, seq, (nRD, nRD), lambda_tv=lambda_tv)
-        else:
-            image_ind = recon_nufft_2d(kdata_input, self.lastseq, (nRD, nRD), lambda_tv=lambda_tv)
-        print(image_ind.shape)
+        
+        image_ind = np.zeros_like(data_ind)
+        for s in range(nSL):
+            image_ind[0,s,:,:] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[0,s,:,:])))
         self.mapVals['iSpace'] = image_ind
         
         # Prepare data to plot (plot central slice)
@@ -646,22 +612,22 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             n += 1
 
         # Normalize image
-        k_space = np.zeros((nSL, nRadial, nRD - 2 * hw.addRdPoints))
-        image = np.zeros(( nSL, nRD, nRD - 2 * hw.addRdPoints))
+        k_space = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
+        image = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
 
         
         n = 0
         for slice in range(nSL):
-            for echo in range(1):
+            for echo in range(self.etl):
                 k_space[n, :, :] = np.abs(data_ind[echo, slice, :, :])
-                image[n, :, :] = np.abs(image_ind[ :, :])
+                image[n, :, :] = np.abs(image_ind[echo, slice, :, :])
                 n += 1
         image = image / np.max(image) * 100
         # plt.plot(np.real(k_space[0,0,:]))
         # plt.show()
         imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
         if not self.unlock_orientation:  # Image orientation
-            pass
+            
             if self.axesOrientation[2] == 2:  # Sagittal
                 title = "Sagittal"
                 if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:  # OK
@@ -669,8 +635,8 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     image = np.flip(image, axis=1)
                     k_space = np.flip(k_space, axis=2)
                     k_space = np.flip(k_space, axis=1)
-                    x_label = "(-Y) A | READOUT2 | P (+Y)"
-                    y_label = "(-X) I | READOUT1 | S (+X)"
+                    x_label = "(-Y) A | PHASE | P (+Y)"
+                    y_label = "(-X) I | READOUT | S (+X)"
                     imageOrientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
                 else:
                     image = np.transpose(image, (0, 2, 1))
@@ -679,8 +645,8 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     k_space = np.transpose(k_space, (0, 2, 1))
                     k_space = np.flip(k_space, axis=2)
                     k_space = np.flip(k_space, axis=1)
-                    x_label = "(-Y) A | READOUT1 | P (+Y)"
-                    y_label = "(-X) I | READOUT2 | S (+X)"
+                    x_label = "(-Y) A | READOUT | P (+Y)"
+                    y_label = "(-X) I | PHASE | S (+X)"
                     imageOrientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
             elif self.axesOrientation[2] == 1:  # Coronal
                 title = "Coronal"
@@ -691,8 +657,8 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     k_space = np.flip(k_space, axis=2)
                     k_space = np.flip(k_space, axis=1)
                     k_space = np.flip(k_space, axis=0)
-                    x_label = "(+Z) R | READOUT2 | L (-Z)"
-                    y_label = "(-X) I | READOUT1 | S (+X)"
+                    x_label = "(+Z) R | PHASE | L (-Z)"
+                    y_label = "(-X) I | READOUT | S (+X)"
                     imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
                 else:
                     image = np.transpose(image, (0, 2, 1))
@@ -703,8 +669,8 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     k_space = np.flip(k_space, axis=2)
                     k_space = np.flip(k_space, axis=1)
                     k_space = np.flip(k_space, axis=0)
-                    x_label = "(+Z) R | READOUT1 | L (-Z)"
-                    y_label = "(-X) I | READOUT2 | S (+X)"
+                    x_label = "(+Z) R | READOUT | L (-Z)"
+                    y_label = "(-X) I | PHASE | S (+X)"
                     imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
             elif self.axesOrientation[2] == 0:  # Transversal
                 title = "Transversal"
@@ -713,8 +679,8 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     image = np.flip(image, axis=1)
                     k_space = np.flip(k_space, axis=2)
                     k_space = np.flip(k_space, axis=1)
-                    x_label = "(+Z) R | READOUT2 | L (-Z)"
-                    y_label = "(+Y) P | READOUT1 | A (-Y)"
+                    x_label = "(+Z) R | PHASE | L (-Z)"
+                    y_label = "(+Y) P | READOUT | A (-Y)"
                     imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
                 else:  # OK
                     image = np.transpose(image, (0, 2, 1))
@@ -723,8 +689,8 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                     k_space = np.transpose(k_space, (0, 2, 1))
                     k_space = np.flip(k_space, axis=2)
                     k_space = np.flip(k_space, axis=1)
-                    x_label = "(+Z) R | READOUT1 | L (-Z)"
-                    y_label = "(+Y) P | READOUT2 | A (-Y)"
+                    x_label = "(+Z) R | READOUT | L (-Z)"
+                    y_label = "(+Y) P | PHASE | A (-Y)"
                     imageOrientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
         else:
             x_label = "%s axis" % axes_str[1]
@@ -740,7 +706,7 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                    'col': 0}
 
         result2 = {'widget': 'image',
-                   'data': np.log10(k_space+0.01),
+                   'data': np.log10(k_space+0.01), # plus 0.01 in case of log(0) = -inf
                    'xLabel': x_label,
                    'yLabel': y_label,
                    'title': "k_space",
@@ -769,11 +735,11 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         # Sequence parameters
         self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
         self.meta_data["EchoTime"] = self.mapVals['echoTime']
-        self.meta_data["FlipAngle"] = [self.mapVals['rfExFA']]
+        self.meta_data["FlipAngle"] = self.mapVals['rfExFA']
         self.meta_data["NumberOfAverages"] = self.mapVals['nScans']
+        # self.meta_data["EchoTrainLength"] = self.mapVals['etl']
         
-
-        self.meta_data["ScanningSequence"] = 'GRE'
+        self.meta_data["ScanningSequence"] = 'FLASH'
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]
@@ -786,11 +752,10 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             self.plotResults()
 
         return self.output
-  
-
-
+ 
+    
 if __name__ == '__main__':
-    seq = GRERadialPSEQ()
+    seq = UTEPSEQ()
     seq.sequenceAtributes()
     seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
