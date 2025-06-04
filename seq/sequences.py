@@ -47,6 +47,7 @@ import seq.flash_pseq as flash_pseq
 import seq.se_multislice_debug_pseq as se_multislice_debug_pseq
 import seq.tse_multislice_debug_pseq as tse_multislice_debug_pseq
 import seq.tse_multislice_debugT2_pseq as tse_multislice_debugT2_pseq
+import seq.gre_radial_debug_pseq as gre_radial_debug_pseq
 # class RARE(rare.RARE):
 #     def __init__(self): super(RARE, self).__init__()
 
@@ -150,6 +151,10 @@ class TSEMultisliceDebugPSEQ(tse_multislice_debug_pseq.TSEMultisliceDebugPSEQ):
 
 class TSEMultisliceDebugT2PSEQ(tse_multislice_debugT2_pseq.TSEMultisliceDebugT2PSEQ):
     def __init__(self): super(TSEMultisliceDebugT2PSEQ, self).__init__()
+
+class GRERadialDebugPSEQ(gre_radial_debug_pseq.GRERadialDebugPSEQ):
+    def __init__(self): super(GRERadialDebugPSEQ, self).__init__()
+
 """
 Definition of default sequences
 """
@@ -195,4 +200,5 @@ defaultsequences = {
     'se_multislice_debug_pseq': se_multislice_debug_pseq.SEMultisliceDebugPSEQ(),
     'tse_multislice_debug_pseq': tse_multislice_debug_pseq.TSEMultisliceDebugPSEQ(),
     'tse_multislice_debugT2_pseq': tse_multislice_debugT2_pseq.TSEMultisliceDebugT2PSEQ(),
+    'gre_radial_debug_pseq': gre_radial_debug_pseq.GRERadialDebugPSEQ(),
 }

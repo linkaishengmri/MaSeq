@@ -64,6 +64,11 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
         self.fsp_s = None
         self.gx_comp = None
         self.gz_comp = None
+        self.gy_comp = None
+        self.adcDelayTime = None
+        self.RFexDelayTime = None
+        
+        
          
         self.addParameter(key='seqName', string='gre', val='gre')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -94,11 +99,19 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
                           tip="Gradient spoiling for slice.")
-        self.addParameter(key='gx_comp', string='gx_comp', val=0.47, field='OTH',
+        self.addParameter(key='Nr', string='Number of radial readouts', val=10, field='OTH',)
+        self.addParameter(key='gx_comp', string='gx_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for readout.") 
-        self.addParameter(key='gz_comp', string='gz_comp', val=0.5, field='OTH',
+        self.addParameter(key='gy_comp', string='gy_comp', val=0.50, field='OTH',
+                          tip="Gradient compensation for readout.") 
+        
+        self.addParameter(key='gz_comp', string='gz_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for slice.") 
-     
+        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=0, field='OTH')
+        self.addParameter(key='adcDelayTime', string='ADC delay time (us)', val=180, units=units.us, field='OTH')
+        self.addParameter(key='RFexDelayTime', string='RF ex delay time (us)', val=180, units=units.us, field='OTH')
+        
+        
      
 
     def sequenceTime(self):
@@ -518,6 +531,10 @@ class GRERadialPSEQ(blankSeq.MRIBLANKSEQ):
             standard_seq.set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(f"gre_radial_{batch_num}.seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(f"gre_radial_{batch_num}.seq")
+            rx0_en = self.waveforms[batch_num]['rx0_en']
+            self.waveforms[batch_num]['rx0_en'] = (rx0_en[0] + self.adcDelayTime*1e6, rx0_en[1])
+            tx0 = self.waveforms[batch_num]['tx0']
+            self.waveforms[batch_num]['tx0'] = (tx0[0] + self.RFexDelayTime*1e6, tx0[1])
             print(f"gre_radial_{batch_num}.seq ready!")
             print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
 

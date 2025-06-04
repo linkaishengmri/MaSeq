@@ -64,20 +64,24 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.fsp_s = None
         self.Nr = None
         self.gx_comp = None
+        self.gy_comp = None
         self.gz_comp = None
         self.compReadGrad = None
+        self.adcDelayTime = None
+        self.RFexDelayTime = None
+        
         self.addParameter(key='seqName', string='gre', val='gre')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53380, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50.0, units=units.ms, field='SEQ')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=12.0, units=units.ms, field='SEQ')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=10.0, units=units.ms, field='SEQ')
         
-        self.addParameter(key='fovInPlane', string='FOV (mm)', val=200, units=units.mm, field='IM')
+        self.addParameter(key='fovInPlane', string='FOV (mm)', val=100, units=units.mm, field='IM')
         self.addParameter(key='thickness', string='Slice thickness (mm)', val=5, units=units.mm, field='IM')
         self.addParameter(key='sliceGap', string='Slice gap (mm)', val=1, units=units.mm, field='IM')
-        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 12.0], units=units.mm, field='IM',
+        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
         self.addParameter(key='nPoints', string='nPoints[rd, -, sl]', val=[128, 1, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
@@ -98,9 +102,15 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='Nr', string='Number of radial readouts', val=10, field='OTH',)
         self.addParameter(key='gx_comp', string='gx_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for readout.") 
+        self.addParameter(key='gy_comp', string='gy_comp', val=0.50, field='OTH',
+                          tip="Gradient compensation for readout.") 
+        
         self.addParameter(key='gz_comp', string='gz_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for slice.") 
-        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=-10, field='OTH')
+        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=0, field='OTH')
+        self.addParameter(key='adcDelayTime', string='ADC delay time (us)', val=180, units=units.us, field='OTH')
+        self.addParameter(key='RFexDelayTime', string='RF ex delay time (us)', val=180, units=units.us, field='OTH')
+        
         
      
 
@@ -518,6 +528,10 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
             batches[batch_num].set_definition(key="FOV", value=self.fov)
             batches[batch_num].write(f"gre_radial_{batch_num}.seq")
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(f"gre_radial_{batch_num}.seq")
+            rx0_en = self.waveforms[batch_num]['rx0_en']
+            self.waveforms[batch_num]['rx0_en'] = (rx0_en[0] + self.adcDelayTime*1e6, rx0_en[1])
+            tx0 = self.waveforms[batch_num]['tx0']
+            self.waveforms[batch_num]['tx0'] = (tx0[0] + self.RFexDelayTime*1e6, tx0[1])
             print(f"gre_radial_{batch_num}.seq ready!")
             print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
 
@@ -663,7 +677,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = GRERadialDebugPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

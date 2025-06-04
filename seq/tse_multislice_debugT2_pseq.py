@@ -62,11 +62,13 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.effEchoTime = None
         self.phaseCycleEx = None
         self.compReadGrad = None
+        self.compSliceGrad = None
         self.fsp_r = None
         self.fsp_s = None
         self.eddyCurrentComp = None
         self.adcDeadTime =None
         self.adcDelayTime = None
+        self.RFexDelayTime = None    
 
         self.addParameter(key='seqName', string='tse', val='tse')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -95,8 +97,9 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoSpacing', string='Echo Spacing (ms)', val=20.0, units=units.ms, field='SEQ')
         self.addParameter(key='phaseCycleEx', string='Phase cycle for excitation', val=[0, 180], field='SEQ',
                           tip="List of phase values for cycling the excitation pulse.")
-        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=[0]*9
+        self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=[1,2,3,4,5,6,7,8,9]
                           ,field='OTH')
+        self.addParameter(key='compSliceGrad', string='Slice Grad. Compensation', val=[10,20,3,4,5,6,7,8], field='OTH')
         self.addParameter(key='fsp_r', string='Readout Spoiling', val=0, field='OTH',
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=0, field='OTH',
@@ -107,7 +110,8 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='maxRFP180', string='Max RF180 Sinc(uT)', val=19, field='OTH')
         self.addParameter(key='eddyCurrentComp', string='Eddy current compensation', val=1, field='OTH')
         self.addParameter(key='adcDeadTime', string='ADC dead time (us)', val=0, units=units.us, field='OTH')
-        self.addParameter(key='adcDelayTime', string='ADC delay time (us)', val=1000, units=units.us, field='OTH')
+        self.addParameter(key='adcDelayTime', string='ADC delay time (us)', val=180, units=units.us, field='OTH')
+        self.addParameter(key='RFexDelayTime', string='RF ex delay time (us)', val=180, units=units.us, field='OTH')
         
 
     def sequenceInfo(self):
@@ -668,8 +672,12 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                             gp_pre.amplitude = 0
                             gp_rew.amplitude = 0
                         # rf_ref.phase_offset = rf_ref_offset[k_echo]
+
                         batches[batch_num].add_block(gs4, rf_ref), standard_seq.add_block(gs4, rf_ref)
-                        batches[batch_num].add_block(gs5, pp.add_gradients([gr5,gr_comp] ,system=self.system), gp_pre), standard_seq.add_block(gs5, gr5, gp_pre)
+                        gs5_amp_comp = np.array([gs_ref.amplitude, gs_spr.amplitude+self.compSliceGrad[k_echo]*1e3, gs_spr.amplitude+self.compSliceGrad[k_echo]*1e3, 0])
+                        gs5_comp = pp.make_extended_trapezoid(channel="z", times=gs5_times, amplitudes=gs5_amp_comp)
+
+                        batches[batch_num].add_block(gs5_comp, pp.add_gradients([gr5,gr_comp] ,system=self.system), gp_pre), standard_seq.add_block(gs5, gr5, gp_pre)
                         if k_ex > 0:
                             adc.freq_offset = gr6.waveform.max() * self.dfov[0] 
                             adc.phase_offset = adc.phase_offset + 2 * np.pi * pe_order[k_echo, k_ex-1] * self.dfov[1] / self.fov[1]
@@ -726,6 +734,8 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
             self.waveforms[batch_num], param_dict = self.flo_interpreter.interpret(batch_num + ".seq")
             rx0_en = self.waveforms[batch_num]['rx0_en']
             self.waveforms[batch_num]['rx0_en'] = (rx0_en[0] + self.adcDelayTime*1e6, rx0_en[1])
+            tx0 = self.waveforms[batch_num]['tx0']
+            self.waveforms[batch_num]['tx0'] = (tx0[0] + self.RFexDelayTime*1e6, tx0[1])
             print(f"{batch_num}.seq ready!")
             print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
 
@@ -868,7 +878,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultisliceDebugT2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
