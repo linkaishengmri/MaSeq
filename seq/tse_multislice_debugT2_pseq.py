@@ -607,7 +607,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                     )
                     rf_ex.phase_offset = (
                         np.pi / 2 + rf_ex_cycle[k_ex]
-                        - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
+                        # - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
                     )
                     rf_ref_offset_for_slice = - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     rf_ref_offset = rf_ref_offset_for_slice + 0
@@ -616,6 +616,8 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                     #     0 
                     #     - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     # )
+                    rf_ref.phase_offset = np.pi #rf_ref_offset[k_echo]
+
 
                     if self.EnableGrad[0] == 0:
                         gr3.amplitude = 0
@@ -671,8 +673,7 @@ class TSEMultisliceDebugT2PSEQ(blankSeq.MRIBLANKSEQ):
                         if self.EnableGrad[1] == 0:
                             gp_pre.amplitude = 0
                             gp_rew.amplitude = 0
-                        # rf_ref.phase_offset = rf_ref_offset[k_echo]
-
+                        # 
                         batches[batch_num].add_block(gs4, rf_ref), standard_seq.add_block(gs4, rf_ref)
                         gs5_amp_comp = np.array([gs_ref.amplitude, gs_spr.amplitude+self.compSliceGrad[k_echo]*1e3, gs_spr.amplitude+self.compSliceGrad[k_echo]*1e3, 0])
                         gs5_comp = pp.make_extended_trapezoid(channel="z", times=gs5_times, amplitudes=gs5_amp_comp)

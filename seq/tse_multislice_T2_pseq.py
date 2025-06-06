@@ -592,15 +592,13 @@ class TSEMultisliceT2PSEQ(blankSeq.MRIBLANKSEQ):
                     )
                     rf_ex.phase_offset = (
                         np.pi / 2 + rf_ex_cycle[k_ex]
-                        - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
+                        # - 2 * np.pi * rf_ex.freq_offset * pp.calc_rf_center(rf_ex)[0]
                     )
                     rf_ref_offset_for_slice = - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
                     rf_ref_offset = rf_ref_offset_for_slice + 0
                     adc.phase_offset = rf_ex_cycle[k_ex]
-                    # rf_ref.phase_offset = (
-                    #     0 
-                    #     - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
-                    # )
+                    rf_ref.phase_offset = np.pi # rf_ref_offset[k_echo]
+                       
  
 
                     batches[batch_num].add_block(gs1), standard_seq.add_block(gs1)
@@ -990,7 +988,7 @@ class TSEMultisliceT2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = TSEMultisliceT2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
