@@ -1703,6 +1703,7 @@ class MRIBLANKSEQ:
             dicom_image.meta_data["PixelData"] = self.meta_data["PixelData"]
         except KeyError:
             image = self.output[0]['data']
+            image = np.round(image * 20) # round to 16bits
             dicom_image.meta_data["PixelData"] = image.astype(np.int16).tobytes()
             # If it is a 3D image
             if len(image.shape) > 2:
