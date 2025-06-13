@@ -1859,7 +1859,8 @@ class MRIBLANKSEQ:
             plot += 1
 
         # Set the figure title
-        plt.suptitle(self.mapVals['fileName'])
+        plt.suptitle(self.mapVals.get('fileName', 'Temporary plot'))
+
 
         # Adjust the layout to prevent overlapping titles
         plt.tight_layout()

@@ -346,7 +346,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
                         rxd, msgs = self.expt.run()  # Run the experiment and collect data
                     else:
                         # In demo mode, generate random data as a placeholder
-                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
+                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()*self.nScans) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points()*self.nScans)}
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
                     add_rx_points = self.flo_interpreter.get_add_rx_points()
@@ -516,7 +516,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 
         # create self.out to run in iterative mode
         self.output = [result1, result2]
-        self.saveRawData()
+        # self.saveRawData()
 
         if self.mode == 'Standalone':
             self.plotResults()
@@ -525,7 +525,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SRT1PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

@@ -108,8 +108,8 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000, units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=25.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=50.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=10, field='IM')
@@ -349,11 +349,11 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
                         rxd, msgs = self.expt.run()  # Run the experiment and collect data
                     else:
                         # In demo mode, generate random data as a placeholder
-                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
+                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()*self.nScans) + 1j * np.random.randn(expected_points  + self.flo_interpreter.get_add_rx_points()* self.nScans)}
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
                     add_rx_points = self.flo_interpreter.get_add_rx_points()
-                    before_delete = np.reshape(rx_raw_data, newshape=(self.etl * self.nScans, -1))
+                    before_delete = np.reshape(rx_raw_data, newshape=(self.nScans, -1))
                     rxdataremove = before_delete[:, add_rx_points:]
                     rxdata = np.reshape(rxdataremove, newshape=(-1))
                     acquired_points = np.size(rxdata)
