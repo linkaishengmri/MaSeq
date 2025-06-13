@@ -31,16 +31,16 @@ import time
 from datetime import datetime
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
-from seq.T2T2_pseq import T2T2PSEQ
+from seq.FFG_pseq import FFGPSEQ
 
-class T2T2SPECPSEQ(T2T2PSEQ):
+class FFGSPECPSEQ(FFGPSEQ):
     
     def __init__(self):
-        super(T2T2SPECPSEQ, self).__init__()
-        self.firstEtlRange = None
+        super(FFGSPECPSEQ, self).__init__()
+        self.FirstEchoSpacingRange = None
         self.cycleNum = None
-        self.addParameter(key='firstEtlRange', string='1st Etl Range', val=[5,1023], field='SEQ')
-        self.addParameter(key='cycleNum', string='Cycle Number', val=16, field='SEQ')
+        self.addParameter(key='FirstEchoSpacingRange', string='1st EchoSpacing Range(ms)', val=[0.5, 15], units=units.ms, field='SEQ')
+        self.addParameter(key='cycleNum', string='Cycle Number', val=8, field='SEQ')
     
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['cycleNum'] * self.mapVals['nScans'] / 60)  # minutes
@@ -151,13 +151,14 @@ class T2T2SPECPSEQ(T2T2PSEQ):
 
             return Repeat_Para.astype(int)  # Return as integer array
 
-        repeatPara = calculate_repeat_para(4, self.firstEtlRange[0], self.firstEtlRange[1], self.cycleNum)
+        repeatPara = calculate_repeat_para(1, self.FirstEchoSpacingRange[0], self.FirstEchoSpacingRange[1], self.cycleNum)
+        
         # xls format:
         # C2(5), TAU(520), MixedTime(5000), NS(8), RD(3000000)
         xlsPramsList = np.array([
-            self.mapVals['firstEtl'],
-            self.mapVals['echoSpacing']*1000,
-            self.mapVals['mixedTime']*1000,
+            int(self.mapVals['gradAmp'][0] / hw.max_grad * 32767),
+            self.mapVals['FirstEchoSpacing']*500,
+            self.mapVals['etl'],
             self.mapVals['nScans'],
             self.mapVals['repetitionTime']*1000,
         ])
@@ -172,13 +173,13 @@ class T2T2SPECPSEQ(T2T2PSEQ):
         fig, ax = plt.subplots()    
         for rindex in range(len(repeatPara)):
             # set inversion time
-            self.mapVals['firstETL'] = repeatPara[rindex] 
-            self.firstEtl = repeatPara[rindex] 
+            self.mapVals['FirstEchoSpacing'] = repeatPara[rindex] * 2 / 1000
+            self.firstEtl = self.mapVals['FirstEchoSpacing'] * 1e-3  # convert to seconds
             # Run sequence
             super().sequenceRun(plotSeq=plotSeq, demo=demo, standalone=standalone)
             filtered_signalVStime = self.cycleDataAnalysis(mode=self.mode)
-            print(f'-----firstEtl above: {repeatPara[rindex]} ------- max abs value: {np.abs(filtered_signalVStime[1]).max()}')
-    
+            print(f'-----FirstEchoSpacing above: {repeatPara[rindex] * 2 / 1000},  ------- max abs value: {np.abs(filtered_signalVStime[1]).max()}')
+
             # plotting
             ax.plot(filtered_signalVStime[0], np.abs(filtered_signalVStime[1]), label=f'Cycle #{rindex + 1}')  
             ax.legend()
@@ -188,14 +189,14 @@ class T2T2SPECPSEQ(T2T2PSEQ):
             # Save results
             result[rindex] = filtered_signalVStime[1]
             resultMat = np.column_stack(((np.arange(len(result[rindex]))*self.mapVals['echoSpacing']*1000+self.mapVals['echoSpacing']*1000), np.abs(result[rindex])))
-            extended_xlsvector[13] = repeatPara[rindex]
+            extended_xlsvector[1] = repeatPara[rindex]
             result_matrix = np.hstack((resultMat, extended_xlsvector))
             df = pd.DataFrame(result_matrix, columns=['TE/us', 'Ampti', 'Param'])
 
             # Write outputMat to a text file with tab-separated values
-            path = os.path.join('experiments/T2T2', now)
+            path = os.path.join('experiments/FFG', now)
             os.makedirs(path, exist_ok=True)
-            df.to_excel(os.path.join(path, f'C2-{repeatPara[rindex]}.xlsx'), index=False)
+            df.to_excel(os.path.join(path, f'D11-{repeatPara[rindex]}.xlsx'), index=False)
             
             time.sleep(0.01)
         plt.ioff() 
@@ -225,35 +226,34 @@ class T2T2SPECPSEQ(T2T2PSEQ):
         return self.output
 
 if __name__ == '__main__':
-    seq = T2T2SPECPSEQ()
+    seq = FFGSPECPSEQ()
     init_params = {
-        "seqName": "T2T2",
+        "seqName": 'FFG',
         "nScans": 4,
-        "larmorFreq": 10.35680,
+        "larmorFreq": 10.35598,
         "rfExFA": 90,
         "rfReFA": 180,
         "rfExTime": 25.0,
         "rfReTime": 50.0,
-        "echoSpacing": 0.5,
+        "echoSpacing": 0.8,
         "repetitionTime": 3000,
         "nPoints": 10,
         "filterWindowSize": 10,
         "etl": 2048,
         "bandwidth": 426.666667,
         "shimming": [0.0, 0.0, 0.0],
-        "Exphase": [0, 0, 180, 180, 90, 90, 270, 270],
-        "Refphase": [90, 90, 90, 90, 180, 180, 180, 180],
-        "Rxphase": [90, 270, 90, 270, 180, 0, 180, 0],
+        "Exphase": [0, 180, 90, 270],
+        "Refphase": [90, 90, 180, 180],
+        "Rxphase": [0, 180, 90, 270],
         "RxTimeOffset": 0,
         "txChannel": 0,
         "rxChannel": 0,
-        "firstEtl": 10,
-        "mixedTime": 10,
-        "firstExphase": [0, 0, 180, 180, 90, 90, 270, 270],
-        "secondExphase": [0, 180, 0, 180, 90, 270, 90, 270],
-        "firstRefphase": [90, 90, 90, 90, 180, 180, 180, 180],
-        "firstEtlRange": [5, 1023],
-        "cycleNum": 16,
+        "riseTime": 0.001,
+        "gradDeadTime": 2,
+        "gradAmp": [28.0, 0.0, 0.0],
+        "FirstEchoSpacing": 10,
+        "FirstEchoSpacingRange": [0.5, 15],
+        "cycleNum": 8,
     }
     seq.mapVals.update(init_params)
     seq.sequenceAtributes()

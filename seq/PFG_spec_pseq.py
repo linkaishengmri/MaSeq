@@ -31,16 +31,18 @@ import time
 from datetime import datetime
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
-from seq.T2T2_pseq import T2T2PSEQ
+from seq.PFG_pseq import PFGPSEQ
 
-class T2T2SPECPSEQ(T2T2PSEQ):
+class PFGSPECPSEQ(PFGPSEQ):
     
     def __init__(self):
-        super(T2T2SPECPSEQ, self).__init__()
-        self.firstEtlRange = None
+        super(PFGSPECPSEQ, self).__init__()
+        self.gradAmpRange = None
         self.cycleNum = None
-        self.addParameter(key='firstEtlRange', string='1st Etl Range', val=[5,1023], field='SEQ')
+        self.enaGradAxis = None
+        self.addParameter(key='gradAmpRange', string='Grad. Amplitude Range (mT/m)', val=[3.6622, 36.6222], field='SEQ')
         self.addParameter(key='cycleNum', string='Cycle Number', val=16, field='SEQ')
+        self.addParameter(key='enaGradAxis', string='Enable Gradient Axis', val=[1, 0, 0], field='SEQ')
     
     def sequenceTime(self):
         return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['cycleNum'] * self.mapVals['nScans'] / 60)  # minutes
@@ -113,6 +115,12 @@ class T2T2SPECPSEQ(T2T2PSEQ):
     
     def sequenceRun(self, plotSeq=0, demo=False, standalone=False):
         
+        def gradAmpConvert2mT_m(gradAmp):
+            return gradAmp / 32767.0 * hw.max_grad
+
+        def gradAmpConvertFrommT_m(gradAmp):
+            return int(gradAmp / hw.max_grad * 32767)
+
         def calculate_repeat_para(nType, m_Min, m_Max, Counts):
             """
             Calculate Repeat_Para based on nType using numpy.
@@ -151,34 +159,39 @@ class T2T2SPECPSEQ(T2T2PSEQ):
 
             return Repeat_Para.astype(int)  # Return as integer array
 
-        repeatPara = calculate_repeat_para(4, self.firstEtlRange[0], self.firstEtlRange[1], self.cycleNum)
-        # xls format:
-        # C2(5), TAU(520), MixedTime(5000), NS(8), RD(3000000)
-        xlsPramsList = np.array([
-            self.mapVals['firstEtl'],
-            self.mapVals['echoSpacing']*1000,
-            self.mapVals['mixedTime']*1000,
-            self.mapVals['nScans'],
-            self.mapVals['repetitionTime']*1000,
+        gradAmpDigitized = [gradAmpConvertFrommT_m(gradAmp) for gradAmp in self.gradAmpRange]
+        repeatPara = calculate_repeat_para(2, gradAmpDigitized[0], gradAmpDigitized[1], self.cycleNum)
+        # txt format:
+        # SI(1024), C2(5), TAU(100), RD(2000000), NS(32), D2(100000), D11(5000), D12(5000), D30(1499999), and G18(10000).
+        txtPramsList = np.array([
+            [self.mapVals['etl'], 0],
+            [5, 0],
+            [self.mapVals['echoSpacing']*500, 0],
+            [self.mapVals['repetitionTime']*1000, 0],
+            [self.mapVals['nScans'], 0],
+            [8000, 0],
+            [12000, 0],
+            [60000, 0],
+            [3000, 0],
+            [gradAmpDigitized[0], 0],
         ])
-        xlsvector_len = self.mapVals['etl']
-        extended_xlsvector = np.zeros(xlsvector_len)
-        extended_xlsvector[:5] = xlsPramsList
-        extended_xlsvector = extended_xlsvector.reshape(xlsvector_len, 1)
-
+        
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        result = np.zeros((len(repeatPara), self.mapVals['etl']),dtype=complex)
+        result = np.zeros((len(repeatPara), self.mapVals['etl']), dtype=complex)
         plt.ion() 
         fig, ax = plt.subplots()    
         for rindex in range(len(repeatPara)):
-            # set inversion time
-            self.mapVals['firstETL'] = repeatPara[rindex] 
-            self.firstEtl = repeatPara[rindex] 
+            # set gradAmp
+            for i in range(3):
+                self.mapVals['gradAmp'][i] = gradAmpConvert2mT_m(repeatPara[rindex]) * self.enaGradAxis[i]
+                self.gradAmp[i] = self.mapVals['gradAmp'][i]
+
             # Run sequence
             super().sequenceRun(plotSeq=plotSeq, demo=demo, standalone=standalone)
             filtered_signalVStime = self.cycleDataAnalysis(mode=self.mode)
-            print(f'-----firstEtl above: {repeatPara[rindex]} ------- max abs value: {np.abs(filtered_signalVStime[1]).max()}')
-    
+            print(f'-----gradAmp above: {repeatPara[rindex]}/32767, {gradAmpConvert2mT_m(repeatPara[rindex]):.4f} mT/m,  ------- max abs value: {np.abs(filtered_signalVStime[1]).max()}')
+            result[rindex] = filtered_signalVStime[1]
+
             # plotting
             ax.plot(filtered_signalVStime[0], np.abs(filtered_signalVStime[1]), label=f'Cycle #{rindex + 1}')  
             ax.legend()
@@ -186,17 +199,17 @@ class T2T2SPECPSEQ(T2T2PSEQ):
             plt.pause(0.1) 
 
             # Save results
-            result[rindex] = filtered_signalVStime[1]
-            resultMat = np.column_stack(((np.arange(len(result[rindex]))*self.mapVals['echoSpacing']*1000+self.mapVals['echoSpacing']*1000), np.abs(result[rindex])))
-            extended_xlsvector[13] = repeatPara[rindex]
-            result_matrix = np.hstack((resultMat, extended_xlsvector))
-            df = pd.DataFrame(result_matrix, columns=['TE/us', 'Ampti', 'Param'])
+            resultMat = np.column_stack((np.real(result[rindex]), np.imag(result[rindex])))
+            # Write the result to txt format:
+            txtPramsList[9][0] = repeatPara[rindex] 
+            outputMat = np.concatenate((txtPramsList,resultMat), axis=0)
 
             # Write outputMat to a text file with tab-separated values
-            path = os.path.join('experiments/T2T2', now)
+            path = os.path.join('experiments/PFG', now)
             os.makedirs(path, exist_ok=True)
-            df.to_excel(os.path.join(path, f'C2-{repeatPara[rindex]}.xlsx'), index=False)
-            
+            filename = os.path.join(path, f'G18-{repeatPara[rindex]}.txt')
+            np.savetxt(filename, outputMat, delimiter='\t', fmt='%s')
+
             time.sleep(0.01)
         plt.ioff() 
         self.full_raw_data = result
@@ -225,35 +238,37 @@ class T2T2SPECPSEQ(T2T2PSEQ):
         return self.output
 
 if __name__ == '__main__':
-    seq = T2T2SPECPSEQ()
+    seq = PFGSPECPSEQ()
     init_params = {
-        "seqName": "T2T2",
+        "seqName": "PFGEcho",
         "nScans": 4,
-        "larmorFreq": 10.35680,
+        "larmorFreq": 10.35622,
         "rfExFA": 90,
         "rfReFA": 180,
         "rfExTime": 25.0,
         "rfReTime": 50.0,
-        "echoSpacing": 0.5,
-        "repetitionTime": 3000,
+        "echoSpacing": 0.7,
+        "repetitionTime": 4000,
         "nPoints": 10,
         "filterWindowSize": 10,
-        "etl": 2048,
+        "etl": 4096,
         "bandwidth": 426.666667,
         "shimming": [0.0, 0.0, 0.0],
-        "Exphase": [0, 0, 180, 180, 90, 90, 270, 270],
-        "Refphase": [90, 90, 90, 90, 180, 180, 180, 180],
-        "Rxphase": [90, 270, 90, 270, 180, 0, 180, 0],
+        "Exphase": [0, 180, 90, 270],
+        "Refphase": [90, 90, 180, 180],
+        "Rxphase": [0, 180, 90, 270],
         "RxTimeOffset": 0,
         "txChannel": 0,
         "rxChannel": 0,
-        "firstEtl": 10,
-        "mixedTime": 10,
-        "firstExphase": [0, 0, 180, 180, 90, 90, 270, 270],
-        "secondExphase": [0, 180, 0, 180, 90, 270, 90, 270],
-        "firstRefphase": [90, 90, 90, 90, 180, 180, 180, 180],
-        "firstEtlRange": [5, 1023],
-        "cycleNum": 16,
+        "p90GradDeadTime": 1,
+        "p180GradDeadTime": 1,
+        "riseTime": 0.5,
+        "gradTime": 20,
+        "gradAmp": [20.0, 0.0, 0.0],
+        "FirstEchoSpacing": 50,
+        'gradAmpRange': [3.663, 36.623],
+        'cycleNum': 8,
+        'enaGradAxis': [1, 0, 0],
     }
     seq.mapVals.update(init_params)
     seq.sequenceAtributes()
