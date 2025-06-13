@@ -96,21 +96,12 @@ class TSE3DPSEQ(blankSeq.MRIBLANKSEQ):
      
 
     def sequenceTime(self):
-        n_scans = self.mapVals['nScans']
-        n_points = np.array(self.mapVals['nPoints'])
-        etl = self.mapVals['etl']
-        repetition_time = self.mapVals['repetitionTime']
-        par_fourier_fraction = self.mapVals['parFourierFraction']
-
-        # check if rf amplitude is too high
-        rf_ex_fa = self.mapVals['rfExFA'] / 180 * np.pi  # rads
-        rf_re_fa = self.mapVals['rfReFA'] / 180 * np.pi  # rads
-        rf_ex_time = self.mapVals['rfExTime']  # us
-        rf_re_time = self.mapVals['rfReTime']  # us
+        return (self.mapVals['repetitionTime'] *1e-3 * 
+                self.mapVals['nScans'] *
+                self.mapVals['nPoints'][1] *
+                self.mapVals['nPoints'][2]
+                / self.mapVals['etl'] / 60)
         
-        seq_time = n_points[1]/etl*n_points[2]*repetition_time*1e-3*n_scans*par_fourier_fraction/60
-        seq_time = np.round(seq_time, decimals=1)
-        return seq_time  # minutes, scanTime
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
