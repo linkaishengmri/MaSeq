@@ -196,7 +196,7 @@ class SRT1T2SPECPSEQ(SRT1T2PSEQ):
 
             # Save results
             result[rindex] = filtered_signalVStime[1]
-            resultMat = np.column_stack(((np.arange(len(result[rindex]))*init_params['echoSpacing']*1000+init_params['echoSpacing']*1000), np.abs(result[rindex])))
+            resultMat = np.column_stack(((np.arange(len(result[rindex]))*self.mapVals['echoSpacing']*1000+self.mapVals['echoSpacing']*1000), np.abs(result[rindex])))
             extended_xlsvector[13] = repeatPara[rindex]
             result_matrix = np.hstack((resultMat, extended_xlsvector))
             df = pd.DataFrame(result_matrix, columns=['TE/us', 'Ampti', 'Param'])
@@ -209,6 +209,7 @@ class SRT1T2SPECPSEQ(SRT1T2PSEQ):
             time.sleep(0.01)
         plt.ioff() 
         self.full_raw_data = result
+        return True
     
     def sequenceAnalysis(self, mode=None):
         self.mode = mode
@@ -264,7 +265,7 @@ if __name__ == '__main__':
     }
     seq.mapVals.update(init_params)
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

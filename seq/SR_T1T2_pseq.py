@@ -349,11 +349,11 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
                         rxd, msgs = self.expt.run()  # Run the experiment and collect data
                     else:
                         # In demo mode, generate random data as a placeholder
-                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()*self.nScans) + 1j * np.random.randn(expected_points  + self.flo_interpreter.get_add_rx_points()* self.nScans)}
+                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()*self.etl * self.nScans) + 1j * np.random.randn(expected_points  + self.flo_interpreter.get_add_rx_points()*self.etl * self.nScans)}
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
                     add_rx_points = self.flo_interpreter.get_add_rx_points()
-                    before_delete = np.reshape(rx_raw_data, newshape=(self.nScans, -1))
+                    before_delete = np.reshape(rx_raw_data, newshape=(self.etl * self.nScans, -1))
                     rxdataremove = before_delete[:, add_rx_points:]
                     rxdata = np.reshape(rxdataremove, newshape=(-1))
                     acquired_points = np.size(rxdata)
@@ -527,7 +527,7 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SRT1T2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
