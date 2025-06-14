@@ -219,11 +219,11 @@ class SRT1SPECPSEQ(SRT1PSEQ):
             fig.show()
             plt.show()
             # plot FilterSingal
-            plt.figure()
-            plt.plot(time_axis, signal_decay)
-            plt.title('Filtered Signal')
-            plt.xlabel('Time (s)')
-            plt.ylabel('Amplitude')
+            # plt.figure()
+            # plt.plot(time_axis, signal_decay)
+            # plt.title('Filtered Signal')
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Amplitude')
 
         display_plot(signal_pack)
         self.mapVals['full_raw_data'] = self.full_raw_data
