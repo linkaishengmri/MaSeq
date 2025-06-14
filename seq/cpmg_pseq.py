@@ -320,7 +320,7 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
                         rxd, msgs = self.expt.run()  # Run the experiment and collect data
                     else:
                         # In demo mode, generate random data as a placeholder
-                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
+                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()*self.etl * self.nScans) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points()*self.etl * self.nScans)}
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
                     add_rx_points = self.flo_interpreter.get_add_rx_points()
@@ -511,9 +511,43 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         flint.plot()
 
 if __name__ == '__main__':
+    
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
+    def display_plot(FiltersignalVStime):
+        from flintpy.flintpy import Flint, FlintSignal
+        signal_decay = np.abs(FiltersignalVStime[1])
+        time_axis = FiltersignalVStime[0] * 1e-3
+        signal = FlintSignal.load_from_data(signal_decay, time_axis, None)
+        flint = Flint(
+            signal, kernel_shape=[1000, 1], kernel_name="T2", alpha=1e-1, t1range=[1e-6, 1e1], t2range=[1e-6, 1e1]
+        )
+        flint.solve_flint()
+
+        # Generate and capture the Plotly figure from flint.plot()
+        fig = flint.plot()
+        print()
+        fig.update_layout(
+            xaxis=dict(
+                tickvals=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1]
+            )
+        )
+        # Display the updated plot
+        fig.show()
+        plt.show()
+        # plot FilterSingal
+        plt.figure(5)
+        plt.plot(FiltersignalVStime[0], np.abs(FiltersignalVStime[1]))
+        plt.title('Filtered Signal')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Amplitude')
+        plt.show()
+    display_plot(seq.mapVals['FiltersignalVStime'])
+
+
+
+    
 
 

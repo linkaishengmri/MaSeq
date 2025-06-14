@@ -346,7 +346,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
                         rxd, msgs = self.expt.run()  # Run the experiment and collect data
                     else:
                         # In demo mode, generate random data as a placeholder
-                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points())}
+                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()* self.nScans) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points()* self.nScans)}
                     # Update acquired points
                     rx_raw_data = rxd[self.rxChName]
                     add_rx_points = self.flo_interpreter.get_add_rx_points()
@@ -513,7 +513,7 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
                    'col': 0}
 
         self.mapVals['filtered_signalVStime'] = [filtered_time_vector,filtered_signal]
-
+        
         # create self.out to run in iterative mode
         self.output = [result1, result2]
         self.saveRawData()

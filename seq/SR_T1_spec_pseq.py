@@ -26,382 +26,33 @@ import experiment_multifreq as ex
 import configs.hw_config_pseq as hw
 from flocra_pulseq.interpreter_pseq import PseqInterpreter
 from pypulseq.convert import convert
+import pandas as pd
+import time
+from datetime import datetime
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
-# max_cpmg_rf_arr = { #us:uT
-#     20: 365,
-#     30: 296,
-#     50: 224,
-#     100:169,
-#     150:149,
-#     200:138,
-#     250:133,
-#     300:130,
-#     400:126,
-#     500:126,
-#     600:126,
-#     700:126,
-#     800:127,
-#     900:129,
-#     1000:130,
-#     1500:136,
-#     2000:133,
-# }
-# max_cpmg_rf_p180_arr = {#us:uT
-#     40:185,
-#     100:114,
-#     200:86,
-#     300:76,
-#     400:70.5,
-#     500:68.5,
-#     600:67,
-#     700:67,
-#     800:67,
-#     900:67,
-#     1000:67,
-# }
-class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
+from seq.SR_T1_pseq import SRT1PSEQ
+
+class SRT1SPECPSEQ(SRT1PSEQ):
+    
     def __init__(self):
-        super(SRT1PSEQ, self).__init__()
-        # Input the parameters
-        self.output = None
-        self.expt = None
-
-        self.seqName = None 
-        self.nScans = None  
-        self.larmorFreq = None 
-        self.rfExFA = None
-        # self.rfReFA = None
-        self.filterWindowSize = None  
-        self.rfExTime = None 
-        # self.rfReTime = None 
-        # self.echoSpacing = None  
-        self.repetitionTime = None  
-        self.nPoints = None 
-        # self.etl = None  
-        self.bandwidth = None
-        self.acqTime = None  
-        self.shimming = None 
-        self.Exphase = None 
-        self.Refphase = None
-        self.Rxphase = None
-        # self.RxTimeOffset = None
-        self.txChannel = None
-        self.rxChannel = None
-
-        self.saturationPulseqNum = None
-        self.saturationIntervalDecay = None
-        self.firstInterval = None
-        self.inversionTime = None
-        self.deadTime = None
-
-        self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35664, units=units.MHz, field='RF')
-       
-        # SR params:
-        self.addParameter(key='saturationPulseqNum', string='Saturation pulse number', val=10, field='SEQ')
-        self.addParameter(key='saturationIntervalDecay', string='Saturation interval decay', val=0.29, field='SEQ')
-        self.addParameter(key='firstInterval', string='1st saturation interval (ms)', val=100, units=units.ms, field='SEQ')
-        self.addParameter(key='inversionTime', string='Inversion time (ms)', val=1500, units=units.ms, field='SEQ')
-        
-        # CPMG params
-        self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
-        # self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000, units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=25.0, units=units.us, field='RF')
-        # self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=50.0, units=units.us, field='RF')
-        self.addParameter(key='deadTime', string='Dead time (us)', val=500.0, units=units.us, field='RF')
-        # self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
-        self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
-        self.addParameter(key='filterWindowSize', string='Filter Window Size', val=10, field='IM')
-        # self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
-        self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=426.666667, units=units.kHz, field='IM',
-                          tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
-        self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
-        self.addParameter(key='Exphase', string='Ex Phase (deg)', val=[0, 180, 90, 270], tip='Excitation Phase Cycling', field='RF')
-        # self.addParameter(key='Refphase', string='Ref Phase (deg)', val=[90, 90, 180, 180], tip='Refocusing Phase Cycling', field='RF')
-        self.addParameter(key='Rxphase', string='Rx Phase (deg)', val=[0, 180, 90, 270], tip='Rx Phase Cycling', field='RF')
-        # self.addParameter(key='RxTimeOffset', string='Rx Time Offset (ms)', val=0, units=units.ms, field='SEQ')
-        self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
-        self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
-
-    def sequenceInfo(self):
-        pass
-        
+        super(SRT1SPECPSEQ, self).__init__()
+        self.inversionTimeRange = None
+        self.cycleNum = None
+        self.addParameter(key='inversionTimeRange', string='Inversion Range (ms)', val=[1,1500], units=units.ms, field='SEQ')
+        self.addParameter(key='cycleNum', string='Cycle Number', val=32, field='SEQ')
+    
     def sequenceTime(self):
-        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['nScans'] / 60)  # minutes
+        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['cycleNum'] * self.mapVals['nScans'] / 60)  # minutes
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
 
-    def sequenceRun(self, plotSeq=0, demo=False, standalone=False):
-        init_gpa = False
-        self.demo = demo
-        self.plotSeq = plotSeq
-        self.standalone = standalone
-
-        max_grad_Hz = convert(from_value=hw.max_grad, from_unit='mT/m', gamma=hw.gammaB, to_unit='Hz/m')
-        rfExTime_us = int(np.round(self.rfExTime * 1e6))
-        # rfReTime_us = int(np.round(self.rfReTime * 1e6))
-        assert rfExTime_us in hw.max_cpmg_rf_arr, f"RF excitation time '{rfExTime_us}' s is not found in the hw_config_pseq file; please search it in search_p90_pseq."
-        # assert rfReTime_us in hw.max_cpmg_rf_p180_arr, f"RF refocusing time '{rfReTime_us}' s is not found in the hw_config_pseq file; please search it in search_p180_pseq."
-        
-        max_rf_Hz = hw.max_cpmg_rf_arr[rfExTime_us] * 1e-6 * hw.gammaB
-        # rf_ref_correction_coeff = 0.5 * hw.max_cpmg_rf_arr[rfExTime_us] / hw.max_cpmg_rf_p180_arr[rfReTime_us]
-        self.flo_interpreter = PseqInterpreter(
-            tx_warmup=1,  # Transmit chain warm-up time (us)
-            rf_center=hw.larmorFreq * 1e6 ,  # Larmor frequency (Hz)
-            rf_amp_max=max_rf_Hz,  # Maximum RF amplitude (Hz)
-            grad_max=max_grad_Hz,  # Maximum gradient amplitude (Hz/m)
-            grad_t=10,  # Gradient raster time (us)
-            grad_eff=hw.gradFactor, # gradient coefficient of efficiency
-            tx_ch = self.txChannel,
-            rx_ch = self.rxChannel,
-            add_rx_points = 8,
-            use_multi_freq=True,
-        )
-        assert (self.txChannel == 0 or self.txChannel == 1)
-        assert (self.rxChannel == 0 or self.rxChannel == 1)
-        self.rxChName = 'rx0' if (self.rxChannel == 0) else 'rx1'
-        self.mapVals['rxChName'] = 'rx0'
-
-        self.system = pp.Opts(
-            rf_dead_time=1 * 1e-6,  # Dead time between RF pulses (s)
-            rf_ringdown_time= 0 * 1e-6,
-            max_grad=30,  # Maximum gradient strength (mT/m)
-            grad_unit='mT/m',  # Units of gradient strength
-            max_slew=hw.max_slew_rate,  # Maximum gradient slew rate (mT/m/ms)
-            slew_unit='mT/m/ms',  # Units of gradient slew rate
-            grad_raster_time=hw.grad_raster_time,  # Gradient raster time (s)
-            rise_time=hw.grad_rise_time,  # Gradient rise time (s)
-            rf_raster_time=0.25e-6,
-            block_duration_raster=0.25e-6,
-            adc_raster_time=1/(122.88e6)
-        )
-
-        bw = self.bandwidth * 1e-6 # MHz
-        bw_ov = bw
-        sampling_period = 1 / bw_ov  # us, Dwell time
-
-        if not self.demo:
-            expt = ex.Experiment(
-                lo_freq=hw.larmorFreq,  # Larmor frequency in MHz
-                rx_t=sampling_period,  # Sampling time in us
-                init_gpa=False,  # Whether to initialize GPA board (False for True)
-                gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
-                auto_leds=True  # Automatic control of LEDs (False or True)
-            )
-            sampling_period = expt.get_rx_ts()[0]  # us
-            bw = 1 / sampling_period # / hw.oversamplingFactor  # MHz
-            print("Acquisition bandwidth fixed to: %0.3f kHz" % (bw * 1e3))
-            expt.__del__()
-        self.mapVals['bw_MHz'] = bw
-        self.mapVals['sampling_period_us'] = sampling_period
-        self.mapVals['acqTime'] = self.nPoints / bw * 1e-3 # ms
-
-        readout_duration = sampling_period * 1e-6 * self.nPoints
-
-        readout_duration_rounded = np.ceil(sampling_period * self.nPoints * 4) / 4 * 1e-6
-        if not self.demo:
-            print(f'dwell time: {sampling_period} us, readout time: {readout_duration} s')
-        
-        RealExphase = np.tile(self.Exphase, int(np.ceil(self.nScans / len(self.Exphase))))
-        # RealRefphase = np.tile(self.Refphase, int(np.ceil(self.nScans / len(self.Refphase))))
-        RealRxphase = np.tile(self.Rxphase, int(np.ceil(self.nScans / len(self.Rxphase))))
-        
-
-        rf_ex = pp.make_block_pulse(
-            flip_angle=self.rfExFA * np.pi / 180,
-            duration=self.rfExTime,
-            system=self.system,
-            phase_offset=RealExphase[0] * np.pi / 180,
-            delay=0,
-        )
-        # rf_ref = pp.make_block_pulse(
-        #     flip_angle=self.rfReFA * np.pi / 180,
-        #     duration=self.rfReTime,
-        #     system=self.system,
-        #     phase_offset=RealRefphase[0] * np.pi / 180,
-        #     delay=0,
-        # )
-        # SR seq design:
-        decay_array_time = self.firstInterval * (self.saturationIntervalDecay ** np.arange(self.saturationPulseqNum))
-        decay_array = np.round(decay_array_time*1e6) / 1e6 
-        SR_recovery_delay = self.inversionTime - self.rfExTime - (self.system.rf_dead_time + self.system.rf_ringdown_time)
-        assert np.all(decay_array > 0), f"Error: decay_array contains non-positive values: {decay_array}"
-        assert (SR_recovery_delay > 0), f"Error: SR_recovery_delay is a non-positive value: {SR_recovery_delay}"
-
-
-
-        # correct p180:
-        # rf_ref.signal = rf_ref_correction_coeff * rf_ref.signal 
-
-        adc = pp.make_adc(num_samples=self.nPoints, duration=readout_duration) 
-        # delay_te1 = np.round((0.5 * (self.echoSpacing - self.rfExTime - self.rfReTime) - (self.system.rf_dead_time+self.system.rf_ringdown_time))
-        #                       / self.system.block_duration_raster) * self.system.block_duration_raster   
-        # delay_te2 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_ringdown_time)
-        #                       / self.system.block_duration_raster) * self.system.block_duration_raster
-        # delay_te3 = np.round((0.5 * (self.echoSpacing - self.rfReTime - readout_duration_rounded) - self.system.rf_dead_time) 
-        #                       / self.system.block_duration_raster) * self.system.block_duration_raster
-        # delay_te2_with_offset = np.round((delay_te2 + self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
-        # delay_te3_with_offset = np.round((delay_te3 - self.RxTimeOffset) / self.system.block_duration_raster) * self.system.block_duration_raster
-        dead_time_period = self.deadTime
-        recovery_time = np.round((self.repetitionTime - (0.5 * self.rfExTime + self.system.rf_dead_time 
-                      + dead_time_period + np.sum((decay_array[:-1] + self.rfExTime + self.system.rf_dead_time + self.system.rf_ringdown_time)) + self.inversionTime
-                      + 0 + np.round(0.5 * readout_duration_rounded * 1e6) / 1e6))
-                      / self.system.block_duration_raster) * self.system.block_duration_raster
-        # Assertions to check if times are greater than zero
-        assert recovery_time > 0, f"Error: recovery_time is non-positive: {recovery_time}"
-        
-        # if self.etl == 1: # for debuging
-        #     delay_te2 = 10e-6 
-        #     delay_te3 = 10e-6 
-        #     delay_te2_with_offset = delay_te2
-        #     delay_te3_with_offset = delay_te3
-        # else:
-        #     assert delay_te2 > 0, f"Error: delay_te2 is non-positive: {delay_te2}"
-        #     assert delay_te3 > 0, f"Error: delay_te3 is non-positive: {delay_te3}"
-        #     assert delay_te2_with_offset > 0, f"Error: delay_te2_with_offset is non-positive: {delay_te2_with_offset}"
-        #     assert delay_te3_with_offset > 0, f"Error: delay_te3_with_offset is non-positive: {delay_te3_with_offset}"
-        
-        acq_points = 0
-        seq = pp.Sequence(system=self.system)
-        for scan in range(self.nScans):
-            # Phase Cycling
-            rf_ex.phase_offset = RealExphase[scan] * np.pi / 180
-            adc.phase_offset = RealRxphase[scan] * np.pi / 180
-            # rf_ref.phase_offset = RealRefphase[scan] * np.pi / 180
-
-            # SR pulse
-            for SRindex in range(self.saturationPulseqNum-1):
-                seq.add_block(rf_ex)
-                seq.add_block(pp.make_delay(decay_array[SRindex]))
-            seq.add_block(rf_ex)
-            seq.add_block(pp.make_delay(SR_recovery_delay))
-
-            # Excitation pulse
-            seq.add_block(rf_ex)
-            seq.add_block(pp.make_delay(dead_time_period))
-            
-            seq.add_block(adc, pp.make_delay(readout_duration_rounded))
-               
-            if not scan == self.nScans-1: 
-                seq.add_block(pp.make_delay(recovery_time))
-
-        if plotSeq:
-            # Check whether the timing of the sequence is correct
-            ok, error_report = seq.check_timing()
-            if ok:
-                print("Timing check passed successfully")
-            else:
-                print("Timing check failed. Error listing follows:")
-                [print(e) for e in error_report]   
-
-            seq.plot(show_blocks =True)
-
-        seq.set_definition(key="Name", value="SRT1")
-        seq.write("SRT1.seq")
-        self.waveforms, param_dict = self.flo_interpreter.interpret("SRT1.seq")
-         
-        larmorFreq = self.mapVals['larmorFreq']
-        if not self.demo:
-            self.expt = ex.Experiment(
-                lo_freq=(self.larmorFreq + 0) * 1e-6,  # Larmor frequency in MHz
-                rx_t= sampling_period,
-                init_gpa=False,  # Whether to initialize GPA board (False for now)
-                gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
-                auto_leds=True  # Automatic control of LEDs
-            )
-        print(f"Center frequecy set: {(self.larmorFreq + 0) * 1e-6} MHz")
-        # Convert the PyPulseq waveform to the Red Pitaya compatible format
-        self.pypulseq2mriblankseqV2(waveforms=self.waveforms, shimming=self.shimming)
-        
-        # Load the waveforms into Red Pitaya
-        if not self.floDict2Exp_ms():
-            print("ERROR: Sequence waveforms out of hardware bounds")
-            return False
-        else:
-            encoding_ok = True
-            # print("Sequence waveforms loaded successfully")
-
-        if self.plotSeq and self.standalone:
-            # Plot the sequence if requested and return immediately
-            self.expt.plot_sequence()
-            self.sequencePlot(standalone=self.standalone)
-            
-        data_over = []
-         
-        # If not plotting the sequence, start scanning
-        if not self.plotSeq:
-            # for scan in range(self.nScans):
-            if True:
-                print(f"Scan running...")
-                acquired_points = 0
-                expected_points = self.nPoints * 1 * self.nScans  # Expected number of points
-
-                # Continue acquiring points until we reach the expected number
-                while acquired_points != expected_points:
-                    if not self.demo:
-                        rxd, msgs = self.expt.run()  # Run the experiment and collect data
-                    else:
-                        # In demo mode, generate random data as a placeholder
-                        rxd = {self.rxChName: np.random.randn(expected_points + self.flo_interpreter.get_add_rx_points()*self.nScans) + 1j * np.random.randn(expected_points + + self.flo_interpreter.get_add_rx_points()*self.nScans)}
-                    # Update acquired points
-                    rx_raw_data = rxd[self.rxChName]
-                    add_rx_points = self.flo_interpreter.get_add_rx_points()
-                    before_delete = np.reshape(rx_raw_data, newshape=(1 * self.nScans, -1))
-                    rxdataremove = before_delete[:, add_rx_points:]
-                    rxdata = np.reshape(rxdataremove, newshape=(-1))
-                    acquired_points = np.size(rxdata)
-
-
-                    # Check if acquired points coincide with expected points
-                    if acquired_points != expected_points:
-                        print("WARNING: data apoints lost!")
-                        print("Repeating batch...")
-
-                # Concatenate acquired data into the oversampled data array
-                data_over = np.concatenate((data_over, rxdata), axis=0)
-                print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
-                print(f"Scan ready!")
-                # plt.plot(data_over)
-                # plt.show()
-            # Decimate the oversampled data and store it
-            self.mapVals['data_over'] = data_over
-
-            # Average data
-            # data = np.average(np.reshape(data_over, (self.nScans, -1)), axis=0)
-            self.mapVals['data'] = data_over
-
-        
-
-        if not self.demo:
-            self.expt.__del__()
-
-        self.mapVals['n_readouts'] = self.nPoints
-        return True
-
-        
-
-
-    def sequenceAnalysis(self, mode=None):
-        
-        def getFHWM(s,f_vector,bw):
-            target = np.max(s) / 2
-            p0 = np.argmax(s)
-            f0 = f_vector[p0]
-            s1 = np.abs(s[0:p0]-target)
-            f1 = f_vector[np.argmin(s1)]
-            s2 = np.abs(s[p0::]-target)
-            f2 = f_vector[np.argmin(s2)+p0]
-            return f2-f1
-
+    def cycleDataAnalysis(self, mode=None):
         self.mode = mode
-        # Signal and spectrum from 'fir' and decimation
         self.mapVals['etl'] = 1
-
-        # [TODO]: Add Rx phase here
+        # Signal and spectrum from 'fir' and decimation 
+        # Phase correction
         if True:
             rawdata = self.mapVals['data']
             chName = self.mapVals['rxChName']
@@ -414,10 +65,8 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
         else: 
             signal = self.mapVals['data']
 
-
         # Average data
         signal = np.average(np.reshape(signal, (self.nScans, -1)), axis=0)
-
           
         # average filter
         bw = self.mapVals['bw_MHz']*1e3 # kHz
@@ -425,7 +74,6 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
         deadTime = 0 #self.mapVals['deadTime']*1e-3 # ms
         rfRectExTime = self.mapVals['rfExTime']*1e-3 # ms
         
-
         def create_tVector(bw, nPoint, echoSpacing, etl, RFinterval = False):
             point_interval = 1 / bw
             # window_duration = nPoint * point_interval
@@ -456,74 +104,172 @@ class SRT1PSEQ(blankSeq.MRIBLANKSEQ):
         # filtered_time_vector = np.reshape(filtered_time, newshape=(-1))
         filtered_time_vector = np.array([self.mapVals['inversionTime']])
 
-        fVector = np.linspace(-bw/2, bw/2, nPoints)
-        spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
-        # hw.larmorFreq=fitedLarmor
-        # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        # fwhm=getFHWM(spectrum, fVector, bw)
-        # dB0=fwhm*1e6/fitedLarmor
-
-
-        # t_filtered = tVector[:filtered_signal.shape[0]]
-
-        # for sequence in self.sequenceList.values():
-        #     if 'larmorFreq' in sequence.mapVals:
-        #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
-        self.mapVals['larmorFreq'] = fitedLarmor
-
-        # Get the central frequency
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        # print('FHWM: %1.5f kHz' % fwhm)
-        # print('dB0/B0: %1.5f ppm' % dB0)
-
-        self.mapVals['signalVStime'] = [tVector, signal]
-        self.mapVals['spectrum'] = [fVector, spectrum]
-        self.mapVals['filtered_signalVStime'] = [filtered_time_vector, filtered_signal]
-        # Add time signal to the layout
-        result1 = {'widget': 'curve',
-                   'xData': tVector,
-                   'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
-                   'xLabel': 'Time (ms)',
-                   'yLabel': 'Signal amplitude',
-                   'title': 'Signal vs time',
-                   'legend': ['abs', 'real', 'imag'],
-                   'row': 0,
-                   'col': 0}
-
-        # # Add frequency spectrum to the layout
-        # result2 = {'widget': 'curve',
-        #            'xData': tVector,#fVector,
-        #            'yData': [np.angle(signal)], #[spectrum],
-        #            'xLabel': 'Time (ms)',
-        #            'yLabel': 'Angle (rad)',
-        #            'title': 'Angle',
-        #            'legend': [''],
-        #            'row': 1,
-        #            'col': 0}
         
-        result2 = {'widget': 'curve',
-                   'xData': filtered_time_vector,
-                   'yData': [np.abs(filtered_signal), np.real(filtered_signal), np.imag(filtered_signal)],
+        
+
+        filtered_signalVStime = [filtered_time_vector,filtered_signal]
+
+        if self.mode == 'Standalone':
+            self.plotResults()
+        return filtered_signalVStime
+    
+    def sequenceRun(self, plotSeq=0, demo=False, standalone=False):
+        
+        def calculate_repeat_para(nType, m_Min, m_Max, Counts):
+            """
+            Calculate Repeat_Para based on nType using numpy.
+            
+            Parameters:
+                nType (int): Type of calculation (1 for FFG TE^3, 2 for PFG G^2, 3 for SR-CPMG, 4 for T2-T2)
+                m_Min (float): Minimum value
+                m_Max (float): Maximum value
+                Counts (int): Number of steps
+            
+            Returns:
+                numpy.ndarray: Array of Repeat_Para values
+            """
+            indices = np.arange(Counts)  # Create indices from 0 to Counts - 1
+            Repeat_Para = np.zeros(Counts)  # Initialize Repeat_Para array
+
+            if nType == 1:  # FFG TE^3
+                min3 = m_Min ** 3
+                max3 = m_Max ** 3
+                values = 10 ** (((np.log10(max3) - np.log10(min3)) / (Counts - 1)) * indices + np.log10(min3))
+                Repeat_Para = np.ceil(values ** (1 / 3))  # Apply cube root and round up
+
+            elif nType == 2:  # PFG G^2
+                min2 = m_Min ** 2
+                max2 = m_Max ** 2
+                values = 10 ** (((np.log10(max2) - np.log10(min2)) / (Counts - 1)) * indices + np.log10(min2))
+                Repeat_Para = np.floor(values ** (1 / 2))  # Apply square root and round down
+
+            elif nType == 3:  # SR-CPMG
+                values = 10 ** (((np.log10(m_Max) - np.log10(m_Min)) / (Counts - 1)) * indices + np.log10(m_Min))
+                Repeat_Para = np.floor(values)  # Round down
+
+            elif nType == 4:  # T2-T2
+                values = 10 ** (((np.log10(m_Max) - np.log10(m_Min)) / (Counts - 1)) * indices + np.log10(m_Min))
+                Repeat_Para = np.floor(values)  # Round down
+
+            return Repeat_Para.astype(int)  # Return as integer array
+
+        repeatPara = calculate_repeat_para(4, self.inversionTimeRange[0]*1e6, self.inversionTimeRange[1]*1e6, self.cycleNum)
+        
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_data_mat = np.zeros((self.cycleNum, 2))
+        filteredsignal = np.zeros((self.cycleNum, 2), dtype=complex)
+        
+        for rindex in range(len(repeatPara)):
+            # set inversion time
+            self.mapVals['inversionTime'] = repeatPara[rindex] * 1e-3  # Convert to ms
+            self.inversionTime = repeatPara[rindex] * 1e-6 # Convert to second
+            # Run sequence
+            super().sequenceRun(plotSeq=plotSeq, demo=demo, standalone=standalone)
+            filtered_signalVStime = self.cycleDataAnalysis(mode=self.mode)
+            print(f'-----TIval above: {repeatPara[rindex] * 1e-3} ms------- max abs value: {np.abs(filtered_signalVStime[1]).max()}')
+            
+
+            # Save results
+            
+            out_data_mat[rindex, 0] = repeatPara[rindex] 
+            out_data_mat[rindex, 1] = np.abs(filtered_signalVStime[1]).max()
+            filteredsignal[rindex, 0] = filtered_signalVStime[0]
+            filteredsignal[rindex, 1] = np.abs(filtered_signalVStime[1])
+            
+            time.sleep(0.01)
+        
+        self.full_raw_data = filteredsignal
+        return True
+    
+    def sequenceAnalysis(self, mode=None):
+        self.mode = mode
+        assert self.full_raw_data is not None, "Please run sequenceRun first to get the raw data."
+        
+        filteredsignal = self.full_raw_data
+        # data export
+        signal_pack = np.column_stack((np.abs(filteredsignal[:, 0])*1e-3, np.abs(filteredsignal[:, 1])))
+        # export to .dat
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.join('experiments/SRT1', now)
+        os.makedirs(path, exist_ok=True)
+        filename = os.path.join(path, f'T1rawdata.txt')
+        np.savetxt(filename, signal_pack, delimiter=',', fmt='%d')
+
+        def display_plot(FiltersignalVStime):
+            from flintpy.flintpy import Flint, FlintSignal
+            signal_decay = FiltersignalVStime[:, 1]
+            time_axis = FiltersignalVStime[:, 0]
+            print(signal_decay)
+            print(time_axis)
+            signal = FlintSignal.load_from_data(signal_decay, time_axis, None)
+            flint = Flint(
+                signal, kernel_shape=[1000, 1], kernel_name="T1SR", alpha=1e-1, t1range=[1e-6, 1e1], t2range=None
+            )
+            flint.solve_flint()
+
+            # Generate and capture the Plotly figure from flint.plot()
+            fig = flint.plot()
+            print()
+            fig.update_layout(
+                xaxis=dict(
+                    tickvals=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1]
+                )
+            )
+            # Display the updated plot
+            fig.show()
+            plt.show()
+            # plot FilterSingal
+            plt.figure()
+            plt.plot(time_axis, signal_decay)
+            plt.title('Filtered Signal')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Amplitude')
+
+        display_plot(signal_pack)
+        self.mapVals['full_raw_data'] = self.full_raw_data
+        result1 = {'widget': 'curve',
+                   'xData': signal_pack[:,0],
+                   'yData': [np.abs(signal_pack[:,1]), np.real(signal_pack[:,1]), np.imag(signal_pack[:,1])],
                    'xLabel': 'Time (ms)',
                    'yLabel': 'Filtered signal amplitude',
                    'title': 'Signal vs time',
                    'legend': ['abs', 'real', 'imag'],
                    'row': 1,
                    'col': 0}
-
-        self.mapVals['filtered_signalVStime'] = [filtered_time_vector,filtered_signal]
-
-        # create self.out to run in iterative mode
-        self.output = [result1, result2]
-        # self.saveRawData()
+        self.output = [result1]
+        self.saveRawData()
 
         if self.mode == 'Standalone':
             self.plotResults()
         return self.output
-    
+
 if __name__ == '__main__':
-    seq = SRT1PSEQ()
+    seq = SRT1SPECPSEQ()
+    init_params = {
+        'seqName': 'SRT1',
+        'nScans': 4,
+        'larmorFreq': 10.33316,
+        'rfExFA': 90,
+        'rfExTime': 25.0,
+        'repetitionTime': 3000,
+        'nPoints': 10,
+        'filterWindowSize': 10,
+        'bandwidth': 426.666667,
+        'shimming': [0.0, 0.0, 0.0],
+        'Exphase': [0, 180, 90, 270],
+        'Refphase': [90, 90, 180, 180],
+        'Rxphase': [0, 180, 90, 270],
+        'txChannel': 0,
+        'rxChannel': 0,
+        'saturationPulseqNum': 10,
+        'saturationIntervalDecay': 0.29,
+        'firstInterval': 100,
+        'inversionTime': 100,
+        'deadTime': 500,
+        'inversionTimeRange': [1, 1500],
+        'cycleNum':32,
+    }
+    seq.mapVals.update(init_params)
     seq.sequenceAtributes()
     seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')

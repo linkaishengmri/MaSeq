@@ -49,6 +49,11 @@ import seq.tse_multislice_debug_pseq as tse_multislice_debug_pseq
 import seq.tse_multislice_debugT2_pseq as tse_multislice_debugT2_pseq
 import seq.gre_radial_debug_pseq as gre_radial_debug_pseq
 import seq.SR_T1T2_spec_pseq as SR_T1T2_spec_pseq
+import seq.SR_T1_spec_pseq as SR_T1_spec_pseq
+import seq.cpmg_pseq as cpmg_pseq
+import seq.T2T2_spec_pseq as T2T2_spec_pseq
+import seq.PFG_spec_pseq as PFG_spec_pseq
+import seq.FFG_spec_pseq as FFG_spec_pseq
 
 # class RARE(rare.RARE):
 #     def __init__(self): super(RARE, self).__init__()
@@ -159,6 +164,24 @@ class GRERadialDebugPSEQ(gre_radial_debug_pseq.GRERadialDebugPSEQ):
 
 class SRT1T2SPECPSEQ(SR_T1T2_spec_pseq.SRT1T2SPECPSEQ):
     def __init__(self): super(SRT1T2SPECPSEQ, self).__init__()
+
+class SRT1SPECPSEQ(SR_T1_spec_pseq.SRT1SPECPSEQ):
+    def __init__(self): super(SRT1SPECPSEQ, self).__init__()
+
+class CPMGPSEQ(cpmg_pseq.CPMGPSEQ):
+    def __init__(self): super(CPMGPSEQ, self).__init__()
+
+class T2T2SPECPSEQ(T2T2_spec_pseq.T2T2SPECPSEQ):
+    def __init__(self): super(T2T2SPECPSEQ, self).__init__()
+
+class PFGSPECPSEQ(PFG_spec_pseq.PFGSPECPSEQ):
+    def __init__(self): super(PFGSPECPSEQ, self).__init__()
+
+class FFGSPECPSEQ(FFG_spec_pseq.FFGSPECPSEQ):
+    def __init__(self): super(FFGSPECPSEQ, self).__init__()
+
+
+
 """
 Definition of default sequences
 """
@@ -205,5 +228,10 @@ defaultsequences = {
     'tse_multislice_debug_pseq': tse_multislice_debug_pseq.TSEMultisliceDebugPSEQ(),
     'tse_multislice_debugT2_pseq': tse_multislice_debugT2_pseq.TSEMultisliceDebugT2PSEQ(),
     'gre_radial_debug_pseq': gre_radial_debug_pseq.GRERadialDebugPSEQ(),
-    'SRT1T2SPECPSEQ': SR_T1T2_spec_pseq.SRT1T2SPECPSEQ(),
+    'sr_t1t2_spec': SR_T1T2_spec_pseq.SRT1T2SPECPSEQ(),
+    'sr_t1_spec': SR_T1_spec_pseq.SRT1SPECPSEQ(),
+    'cpmg_pseq': cpmg_pseq.CPMGPSEQ(),
+    't2t2_pseq': T2T2_spec_pseq.T2T2SPECPSEQ(),
+    'pfg_spec': PFG_spec_pseq.PFGSPECPSEQ(),
+    'ffg_spec': FFG_spec_pseq.FFGSPECPSEQ(),
 }
