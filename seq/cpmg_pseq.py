@@ -92,12 +92,12 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33355, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33356, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=25.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=50.0, units=units.us, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=60.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.8, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=5, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=5, field='IM')
@@ -432,11 +432,11 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
 
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
+        # fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
         # hw.larmorFreq=fitedLarmor
         # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        fwhm=getFHWM(spectrum, fVector, bw)
-        dB0=fwhm*1e6/fitedLarmor
+        # fwhm=getFHWM(spectrum, fVector, bw)
+        # dB0=fwhm*1e6/fitedLarmor
 
 
         # t_filtered = tVector[:filtered_signal.shape[0]]
@@ -444,12 +444,12 @@ class CPMGPSEQ(blankSeq.MRIBLANKSEQ):
         # for sequence in self.sequenceList.values():
         #     if 'larmorFreq' in sequence.mapVals:
         #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
-        self.mapVals['larmorFreq'] = fitedLarmor
+        # self.mapVals['larmorFreq'] = fitedLarmor
 
         # Get the central frequency
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        print('FHWM: %1.5f kHz' % fwhm)
-        print('dB0/B0: %1.5f ppm' % dB0)
+        # print('Larmor frequency: %1.5f MHz' % fitedLarmor)
+        # print('FHWM: %1.5f kHz' % fwhm)
+        # print('dB0/B0: %1.5f ppm' % dB0)
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
@@ -514,7 +514,7 @@ if __name__ == '__main__':
     
     seq = CPMGPSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
     def display_plot(FiltersignalVStime):
         from flintpy.flintpy import Flint, FlintSignal

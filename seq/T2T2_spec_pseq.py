@@ -172,8 +172,13 @@ class T2T2SPECPSEQ(T2T2PSEQ):
         fig, ax = plt.subplots()    
         for rindex in range(len(repeatPara)):
             # set inversion time
-            self.mapVals['firstETL'] = repeatPara[rindex] 
+            self.mapVals['firstEtl'] = repeatPara[rindex] 
             self.firstEtl = repeatPara[rindex] 
+            # print(self.firstEtl,self.mapVals)
+            # # print all key,value of mapvals
+            # for key, value in self.mapVals.items():
+            #     print(f'{key}: {value}')
+                
             # Run sequence
             super().sequenceRun(plotSeq=plotSeq, demo=demo, standalone=standalone)
             filtered_signalVStime = self.cycleDataAnalysis(mode=self.mode)
@@ -229,11 +234,11 @@ if __name__ == '__main__':
     init_params = {
         "seqName": "T2T2",
         "nScans": 4,
-        "larmorFreq": 10.35680,
+        "larmorFreq": 10.33356,
         "rfExFA": 90,
         "rfReFA": 180,
-        "rfExTime": 25.0,
-        "rfReTime": 50.0,
+        "rfExTime": 30.0,
+        "rfReTime": 60.0,
         "echoSpacing": 0.5,
         "repetitionTime": 3000,
         "nPoints": 10,
@@ -257,7 +262,7 @@ if __name__ == '__main__':
     }
     seq.mapVals.update(init_params)
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

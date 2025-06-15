@@ -97,11 +97,11 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
         
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
-        self.addParameter(key='nScans', string='Number of scans', val=2, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.35358, units=units.MHz, field='RF')
+        self.addParameter(key='nScans', string='Number of scans', val=4, field='SEQ')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33348, units=units.MHz, field='RF')
         
         # 1st T2 params:
-        self.addParameter(key='firstEtl', string='First etl', val=10, field='SEQ')
+        self.addParameter(key='firstEtl', string='First etl', val=5, field='SEQ')
         self.addParameter(key='mixedTime', string='Mixed time (ms)', val=10, units=units.ms, field='SEQ')
         self.addParameter(key='firstExphase', string='1st Ex Phase (deg)', val=[0, 0, 180, 180, 90, 90, 270, 270], tip='Excitation Phase Cycling', field='RF')
         self.addParameter(key='secondExphase', string='2nd Ex Phase (deg)', val=[0, 180, 0, 180, 90, 270, 90, 270], tip='Excitation Phase Cycling', field='RF')
@@ -111,8 +111,8 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000., units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=20.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=40.0, units=units.us, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=60.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.5, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=10, field='IM')
@@ -476,11 +476,11 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
         
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
+        # fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
         # hw.larmorFreq=fitedLarmor
         # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        fwhm=getFHWM(spectrum, fVector, bw)
-        dB0=fwhm*1e6/fitedLarmor
+        # fwhm=getFHWM(spectrum, fVector, bw)
+        # dB0=fwhm*1e6/fitedLarmor
 
 
         # t_filtered = tVector[:filtered_signal.shape[0]]
@@ -488,12 +488,12 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
         # for sequence in self.sequenceList.values():
         #     if 'larmorFreq' in sequence.mapVals:
         #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
-        self.mapVals['larmorFreq'] = fitedLarmor
+        # self.mapVals['larmorFreq'] = fitedLarmor
 
         # Get the central frequency
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        print('FHWM: %1.5f kHz' % fwhm)
-        print('dB0/B0: %1.5f ppm' % dB0)
+        # print('Larmor frequency: %1.5f MHz' % fitedLarmor)
+        # print('FHWM: %1.5f kHz' % fwhm)
+        # print('dB0/B0: %1.5f ppm' % dB0)
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
@@ -542,7 +542,7 @@ class T2T2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = T2T2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=True, standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

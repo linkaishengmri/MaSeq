@@ -55,6 +55,7 @@ import seq.T2T2_spec_pseq as T2T2_spec_pseq
 import seq.PFG_spec_pseq as PFG_spec_pseq
 import seq.FFG_spec_pseq as FFG_spec_pseq
 
+
 # class RARE(rare.RARE):
 #     def __init__(self): super(RARE, self).__init__()
 
@@ -231,7 +232,7 @@ defaultsequences = {
     'sr_t1t2_spec': SR_T1T2_spec_pseq.SRT1T2SPECPSEQ(),
     'sr_t1_spec': SR_T1_spec_pseq.SRT1SPECPSEQ(),
     'cpmg_pseq': cpmg_pseq.CPMGPSEQ(),
-    't2t2_pseq': T2T2_spec_pseq.T2T2SPECPSEQ(),
+    't2t2_spec': T2T2_spec_pseq.T2T2SPECPSEQ(),
     'pfg_spec': PFG_spec_pseq.PFGSPECPSEQ(),
     'ffg_spec': FFG_spec_pseq.FFGSPECPSEQ(),
 }

@@ -460,11 +460,11 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
         
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
+        # fitedLarmor=self.mapVals['larmorFreq'] - fVector[np.argmax(np.abs(spectrum))] * 1e-3  #MHz
         # hw.larmorFreq=fitedLarmor
         # print(f"self{self.larmorFreq}, map{self.mapVals['larmorFreq'] }, fv{fVector[np.argmax(np.abs(spectrum))]},fit larmor{fitedLarmor}")
-        fwhm=getFHWM(spectrum, fVector, bw)
-        dB0=fwhm*1e6/fitedLarmor
+        # fwhm=getFHWM(spectrum, fVector, bw)
+        # dB0=fwhm*1e6/fitedLarmor
 
 
         # t_filtered = tVector[:filtered_signal.shape[0]]
@@ -472,12 +472,12 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
         # for sequence in self.sequenceList.values():
         #     if 'larmorFreq' in sequence.mapVals:
         #         sequence.mapVals['larmorFreq'] = hw.larmorFreq
-        self.mapVals['larmorFreq'] = fitedLarmor
+        # self.mapVals['larmorFreq'] = fitedLarmor
 
         # Get the central frequency
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        print('FHWM: %1.5f kHz' % fwhm)
-        print('dB0/B0: %1.5f ppm' % dB0)
+        # print('Larmor frequency: %1.5f MHz' % fitedLarmor)
+        # print('FHWM: %1.5f kHz' % fwhm)
+        # print('dB0/B0: %1.5f ppm' % dB0)
 
         self.mapVals['signalVStime'] = [tVector, signal]
         self.mapVals['spectrum'] = [fVector, spectrum]
