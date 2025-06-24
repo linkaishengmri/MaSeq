@@ -53,11 +53,11 @@ class SearchP90SINCPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='search_p90', val='fid')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53592, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33388, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=180, field='RF')
         
         self.addParameter(key='rfExAmpSearchRange', 
-                          string='RF Amp Searching Range (uT)', val=[80,5,110], field='RF',
+                          string='RF Amp Searching Range (uT)', val=[25,1,40], field='RF',
                           tip="[begin, step, end]")
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         
@@ -67,7 +67,7 @@ class SearchP90SINCPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='Number of acquired points', val=2048, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
-        self.addParameter(key='shimming', string='shimming', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
+        self.addParameter(key='shimming', string='shimming', val=[0.001, -0.006, 0.001], units=units.sh, field='OTH')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 

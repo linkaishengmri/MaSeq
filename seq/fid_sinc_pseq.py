@@ -56,7 +56,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='fid', val='fid')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.3562, units=units.MHz, field='IM')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33386, units=units.MHz, field='IM')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfSincExTime', string='RF sinc excitation time (ms)', val=3.0, units=units.ms, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000.0, units=units.ms, field='SEQ')
@@ -64,7 +64,7 @@ class FidSincPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='nPoints', val=2048, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=40, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz9. This value affects resolution and SNR.")
-        self.addParameter(key='shimming', string='Shimming', val=[0.0015, 0.0020, 0.0015], field='SEQ')
+        self.addParameter(key='shimming', string='Shimming', val=[0.001, -0.006, 0.001], field='SEQ')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
 

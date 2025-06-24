@@ -69,6 +69,8 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.compReadGrad = None
         self.adcDelayTime = None
         self.RFexDelayTime = None
+        self.gradAmpDelayTime = None
+        self.usePreemphasisGrad = None
         
         self.addParameter(key='seqName', string='gre', val='gre')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
@@ -86,7 +88,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='nPoints[rd, -, sl]', val=[128, 1, 1], field='IM')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
                           tip="0=x, 1=y, 2=z")
-        self.addParameter(key='dummyPulses', string='Dummy pulses', val=20, field='SEQ')
+        self.addParameter(key='dummyPulses', string='Dummy pulses', val=0, field='SEQ')
         
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=21.3333333333333333, units=units.kHz, field='IM',
                           tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
@@ -99,7 +101,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
                           tip="Gradient spoiling for readout.")
         self.addParameter(key='fsp_s', string='Slice Spoiling', val=4, field='OTH',
                           tip="Gradient spoiling for slice.")
-        self.addParameter(key='Nr', string='Number of radial readouts', val=10, field='OTH',)
+        self.addParameter(key='Nr', string='Number of radial readouts', val=2, field='OTH',)
         self.addParameter(key='gx_comp', string='gx_comp', val=0.50, field='OTH',
                           tip="Gradient compensation for readout.") 
         self.addParameter(key='gy_comp', string='gy_comp', val=0.50, field='OTH',
@@ -110,7 +112,9 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='compReadGrad', string='Read Grad. Compensation', val=0, field='OTH')
         self.addParameter(key='adcDelayTime', string='ADC delay time (us)', val=180, units=units.us, field='OTH')
         self.addParameter(key='RFexDelayTime', string='RF ex delay time (us)', val=180, units=units.us, field='OTH')
-        
+        self.addParameter(key='gradAmpDelayTime', string='Grad. amp delay time (us)', val=[0,0,0], units=units.us, field='OTH',
+                          tip="Compensation delay time for gradient amplifier.")
+        self.addParameter(key='usePreemphasisGrad', string='usePreemphasisGrad', val=1, field='OTH')
         
      
 
@@ -167,7 +171,7 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
             use_multi_freq = True,
             add_rx_points = 0,
             tx_t= 1229/122.88, # us
-            use_grad_preemphasis=True,
+            use_grad_preemphasis=True if self.usePreemphasisGrad == 1 else False,
             grad_preemphasis_coeff={
                         'zz':( (np.array([1.8061, 1.391, 0.2535, -0.0282]) * 1e-2, 
                             np.array([1567, 17510, 167180, 608533] ))),
@@ -532,6 +536,12 @@ class GRERadialDebugPSEQ(blankSeq.MRIBLANKSEQ):
             self.waveforms[batch_num]['rx0_en'] = (rx0_en[0] + self.adcDelayTime*1e6, rx0_en[1])
             tx0 = self.waveforms[batch_num]['tx0']
             self.waveforms[batch_num]['tx0'] = (tx0[0] + self.RFexDelayTime*1e6, tx0[1])
+            grad_vx = self.waveforms[batch_num]['grad_vx'][0][1:]
+            self.waveforms[batch_num]['grad_vx'][0][1:] = (grad_vx + self.gradAmpDelayTime[0]*1e6)
+            grad_vy = self.waveforms[batch_num]['grad_vy'][0][1:]
+            self.waveforms[batch_num]['grad_vy'][0][1:] = (grad_vy + self.gradAmpDelayTime[1]*1e6)
+            grad_vz = self.waveforms[batch_num]['grad_vz'][0][1:]
+            self.waveforms[batch_num]['grad_vz'][0][1:] = (grad_vz + self.gradAmpDelayTime[2]*1e6)
             print(f"gre_radial_{batch_num}.seq ready!")
             print(f"{len(batches)} batches created with {n_rd_points} read points. Sequence ready!")
 
