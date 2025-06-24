@@ -31,15 +31,15 @@ import time
 from datetime import datetime
 # from seq.utils import sort_data_implicit, plot_nd, ifft_2d, combine_coils
 
-from seq.FFG_pseq import FFGPSEQ
+from seq.IR_T1T2_pseq import IRT1T2PSEQ
 
-class FFGSPECPSEQ(FFGPSEQ):
+class IRT1T2SPECPSEQ(IRT1T2PSEQ):
     
     def __init__(self):
-        super(FFGSPECPSEQ, self).__init__()
-        self.FirstEchoSpacingRange = None
+        super(IRT1T2SPECPSEQ, self).__init__()
+        self.inversionTimeRange = None
         self.cycleNum = None
-        self.addParameter(key='FirstEchoSpacingRange', string='1st EchoSpacing Range(ms)', val=[0.5, 15], units=units.ms, field='SEQ')
+        self.addParameter(key='inversionTimeRange', string='Inversion Range (ms)', val=[1,1500], units=units.ms, field='SEQ')
         self.addParameter(key='cycleNum', string='Cycle Number', val=8, field='SEQ')
     
     def sequenceTime(self):
@@ -151,56 +151,78 @@ class FFGSPECPSEQ(FFGPSEQ):
 
             return Repeat_Para.astype(int)  # Return as integer array
 
-        repeatPara = calculate_repeat_para(1, self.FirstEchoSpacingRange[0]*1e6, self.FirstEchoSpacingRange[1]*1e6, self.cycleNum)
-        
+        repeatPara = calculate_repeat_para(4, self.inversionTimeRange[0]*1e6, self.inversionTimeRange[1]*1e6, self.cycleNum)
         # xls format:
         # C2(5), TAU(520), MixedTime(5000), NS(8), RD(3000000)
         xlsPramsList = np.array([
-            int(self.mapVals['gradAmp'][0] / hw.max_grad * 32767),
-            self.mapVals['FirstEchoSpacing']*500,
-            self.mapVals['etl'],
+            5,
+            self.mapVals['echoSpacing']*1000,
+            5000,
             self.mapVals['nScans'],
             self.mapVals['repetitionTime']*1000,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            self.mapVals['inversionTime']*1000,
         ])
         xlsvector_len = self.mapVals['etl']
         extended_xlsvector = np.zeros(xlsvector_len)
-        extended_xlsvector[:5] = xlsPramsList
+        extended_xlsvector[:14] = xlsPramsList
         extended_xlsvector = extended_xlsvector.reshape(xlsvector_len, 1)
 
+    
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        result = np.zeros((len(repeatPara), self.mapVals['etl']),dtype=complex)
-        plt.ion() 
-        fig, ax = plt.subplots()    
-        for rindex in range(len(repeatPara)):
-            # set inversion time
-            self.mapVals['FirstEchoSpacing'] = repeatPara[rindex] * 2 / 1000
-            self.FirstEchoSpacing = self.mapVals['FirstEchoSpacing'] * 1e-3  # convert to seconds
-            # Run sequence
+        etl = self.mapVals['etl']
+        n_repeat = len(repeatPara)
+        result = np.zeros((n_repeat, etl), dtype=complex)
+
+        plt.ion()
+        fig, ax = plt.subplots()
+
+        for rindex in range(n_repeat):
+            self.mapVals['inversionTime'] = repeatPara[rindex] * 1e-3  # ms
+            self.inversionTime = repeatPara[rindex] * 1e-6  # s
+
             super().sequenceRun(plotSeq=plotSeq, demo=demo, standalone=standalone)
             filtered_signalVStime = self.cycleDataAnalysis(mode=self.mode)
-            print(f'-----FirstEchoSpacing above: {repeatPara[rindex] * 2 / 1000},  ------- max abs value: {np.abs(filtered_signalVStime[1]).max()}')
+            signal = filtered_signalVStime[1]
+            timeAxis = filtered_signalVStime[0]
 
-            # plotting
-            ax.plot(filtered_signalVStime[0], np.abs(filtered_signalVStime[1]), label=f'Cycle #{rindex + 1}')  
+            print(f'-----TIval: {repeatPara[rindex] * 1e-3} ms | max abs: {np.abs(signal).max()}')
+
+            result[rindex] = signal
+
+            ax.plot(timeAxis, np.abs(signal), label=f'Cycle #{rindex + 1}')
             ax.legend()
             plt.draw()
-            plt.pause(0.1) 
+            plt.pause(0.1)
+            time.sleep(0.01)
+        plt.ioff()
 
-            # Save results
-            result[rindex] = filtered_signalVStime[1]
-            resultMat = np.column_stack(((np.arange(len(result[rindex]))*self.mapVals['echoSpacing']*1000+self.mapVals['echoSpacing']*1000), np.abs(result[rindex])))
-            extended_xlsvector[1] = repeatPara[rindex]
+        theta = np.angle(result[-1, 0])  
+        result_rotated = result * np.exp(-1j * theta)  
+        result_real = np.real(result_rotated)  
+
+        path = os.path.join('experiments/IRT1T2', now)
+        os.makedirs(path, exist_ok=True)
+
+        for rindex in range(n_repeat):
+            signal_signed = result_real[rindex]
+            te_us = np.arange(etl) * self.mapVals['echoSpacing'] * 1000 + self.mapVals['echoSpacing'] * 1000
+            resultMat = np.column_stack((te_us, signal_signed))
+            extended_xlsvector[13] = repeatPara[rindex]
             result_matrix = np.hstack((resultMat, extended_xlsvector))
             df = pd.DataFrame(result_matrix, columns=['TE/us', 'Ampti', 'Param'])
+            df.to_excel(os.path.join(path, f'D30-{repeatPara[rindex]}.xlsx'), index=False)
 
-            # Write outputMat to a text file with tab-separated values
-            path = os.path.join('experiments/FFG', now)
-            os.makedirs(path, exist_ok=True)
-            df.to_excel(os.path.join(path, f'D11-{repeatPara[rindex]}.xlsx'), index=False)
-            
-            time.sleep(0.01)
-        plt.ioff() 
-        self.full_raw_data = result
+        self.full_raw_data = result  
+        self.full_raw_data = result_real 
+
         return True
     
     def sequenceAnalysis(self, mode=None):
@@ -226,34 +248,34 @@ class FFGSPECPSEQ(FFGPSEQ):
         return self.output
 
 if __name__ == '__main__':
-    seq = FFGSPECPSEQ()
+    seq = IRT1T2SPECPSEQ()
     init_params = {
-        "seqName": 'FFG',
-        "nScans": 4,
-        "larmorFreq": 10.33324,
-        "rfExFA": 90,
-        "rfReFA": 180,
-        "rfExTime": 30.0,
-        "rfReTime": 60.0,
-        "echoSpacing": 0.8,
-        "repetitionTime": 3000,
-        "nPoints": 10,
-        "filterWindowSize": 10,
-        "etl": 2048,
-        "bandwidth": 426.666667,
-        "shimming": [0.0, 0.0, 0.0],
-        "Exphase": [0, 180, 90, 270],
-        "Refphase": [90, 90, 180, 180],
-        "Rxphase": [0, 180, 90, 270],
-        "RxTimeOffset": 0,
-        "txChannel": 0,
-        "rxChannel": 0,
-        "riseTime": 0.001,
-        "gradDeadTime": 2,
-        "gradAmp": [28.0, 0.0, 0.0],
-        "FirstEchoSpacing": 10,
-        "FirstEchoSpacingRange": [0.5, 15],
-        "cycleNum": 2,
+        'seqName': 'IRT1T2',
+        'nScans': 4,
+        'larmorFreq': 10.33354,
+        'rfExFA': 90,
+        'rfReFA': 180,
+        'rfInvFA': 180,
+        'rfExTime': 30.0,
+        'rfReTime': 60.0,
+        'rfInvTime': 60.0,
+        'echoSpacing': 0.2,
+        'repetitionTime': 3000,
+        'nPoints': 10,
+        'filterWindowSize': 10,
+        'etl': 2048,
+        'bandwidth': 426.666667,
+        'shimming': [0.0, 0.0, 0.0],
+        'Exphase': [0, 180, 90, 270],
+        'Refphase': [90, 90, 180, 180],
+        'Rxphase': [0, 180, 90, 270],
+        'Invphase': [0, 0, 0, 0],
+        'RxTimeOffset': 0,
+        'txChannel': 0,
+        'rxChannel': 0,
+        'inversionTime': 100,
+        'inversionTimeRange': [0.05, 15.00],
+        'cycleNum':8,
     }
     seq.mapVals.update(init_params)
     seq.sequenceAtributes()

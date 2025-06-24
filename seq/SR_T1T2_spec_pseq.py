@@ -238,12 +238,12 @@ if __name__ == '__main__':
     init_params = {
         'seqName': 'SRT1T2',
         'nScans': 4,
-        'larmorFreq': 10.35677,
+        'larmorFreq': 10.33362,
         'rfExFA': 90,
         'rfReFA': 180,
-        'rfExTime': 25.0,
-        'rfReTime': 50.0,
-        'echoSpacing': 0.6,
+        'rfExTime': 30.0,
+        'rfReTime': 60.0,
+        'echoSpacing': 0.2,
         'repetitionTime': 3000,
         'nPoints': 10,
         'filterWindowSize': 10,
@@ -260,7 +260,7 @@ if __name__ == '__main__':
         'saturationIntervalDecay': 0.29,
         'firstInterval': 100,
         'inversionTime': 100,
-        'inversionTimeRange': [1, 1500],
+        'inversionTimeRange': [0.05, 15.00],
         'cycleNum':8,
     }
     seq.mapVals.update(init_params)

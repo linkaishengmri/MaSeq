@@ -108,8 +108,8 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (deg)', val=180, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=3000, units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=25.0, units=units.us, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=50.0, units=units.us, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, units=units.us, field='RF')
+        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=60.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=0.2, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=10, field='IM')
         self.addParameter(key='filterWindowSize', string='Filter Window Size', val=10, field='IM')
@@ -527,7 +527,7 @@ class SRT1T2PSEQ(blankSeq.MRIBLANKSEQ):
 if __name__ == '__main__':
     seq = SRT1T2PSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 
