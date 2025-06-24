@@ -66,9 +66,9 @@ from pypulseq.convert import convert
 #     900:67,
 #     1000:67,
 # }
-class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
+class SPRITER3dSEQ(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(SPRITER2dSEQ, self).__init__()
+        super(SPRITER3dSEQ, self).__init__()
         # Input the parameters
         self.nScans = None
         self.larmorFreq = None
@@ -89,19 +89,19 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33364, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33184, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=10.0, units=units.ms, field='SEQ')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, units=units.us, field='RF')
         self.addParameter(key='echoTime', string='Echo time (ms)', val=.3, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
         self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=0.5, units=units.ms, field='OTH')
-        self.addParameter(key='SpoilingTimeAfterRising', string='Grad. soiling time after grad. rising (ms)', val=0.5, units=units.ms, field='OTH')
-        self.addParameter(key='fov', string='FOV [x,y](mm)', val=[150, 150], units=units.mm, field='IM')
+        self.addParameter(key='SpoilingTimeAfterRising', string='Grad. soiling time after grad. rising (ms)', val=8.0, units=units.ms, field='OTH')
+        self.addParameter(key='fov', string='FOV [x,y](mm)', val=[150, 150, 50], units=units.mm, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=106.66666666666667, units=units.kHz, field='IM',
                                 tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
-        self.addParameter(key='SamplingPoints', string='Sampling Points Number[x,y]', val=[64, 64], field='IM')
-        self.addParameter(key='shimming', string='shimming', val=[0.0013, 0.0019, 0.0005], units=units.sh, field='OTH')
+        self.addParameter(key='SamplingPoints', string='Sampling Points Number[x,y]', val=[8,8,10], field='IM')
+        self.addParameter(key='shimming', string='shimming', val=[0.001, -0.006, 0.001], units=units.sh, field='OTH')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
@@ -110,7 +110,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         pass
         
     def sequenceTime(self):
-        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['SamplingPoints'][0] * self.mapVals['SamplingPoints'][1] * self.mapVals['nScans'] / 60)  # minutes
+        return (self.mapVals['repetitionTime'] *1e-3 * self.mapVals['SamplingPoints'][0] * self.mapVals['SamplingPoints'][1] * self.mapVals['SamplingPoints'][2] * self.mapVals['nScans'] / 60)  # minutes
 
     def sequenceAtributes(self):
         super().sequenceAtributes()
@@ -216,11 +216,14 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         
         delta_kx = 1 / self.fov[0]
         delta_ky = 1 / self.fov[1]
+        delta_kz = 1 / self.fov[2]
         phase_areas_x = (np.arange(self.SamplingPoints[0]) - self.SamplingPoints[0] // 2) * delta_kx
         phase_amp_x = phase_areas_x / self.echoTime
         phase_areas_y = (np.arange(self.SamplingPoints[1]) - self.SamplingPoints[1] // 2) * delta_ky
         phase_amp_y = phase_areas_y / self.echoTime
-        
+        phase_areas_z = (np.arange(self.SamplingPoints[2]) - self.SamplingPoints[2] // 2) * delta_kz
+        phase_amp_z = phase_areas_z / self.echoTime
+
         acq_points = 0
         seq = pp.Sequence(system=self.system)
 
@@ -236,38 +239,45 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         # for scan in range(self.nScans):
             last_phase_amp_x = 0
             last_phase_amp_y = 0
-        
-            for ind_y in range(self.SamplingPoints[1]):
-                current_phase_amp_y = phase_amp_y[ind_y]
-                rise_z = pp.make_extended_trapezoid(
-                        channel="z", 
-                        times=np.array([0, self.riseTime]),
-                        amplitudes=np.array([0, 0]),
-                        system=self.system)
-                for ind in range(self.SamplingPoints[0]):
+            last_phase_amp_z = 0
+            for ind_z in range(self.SamplingPoints[2]):
+                current_phase_amp_z = phase_amp_z[ind_z]
+                
+                
+                for ind_y in range(self.SamplingPoints[1]):
+                    current_phase_amp_y = phase_amp_y[ind_y]
                     
-                    current_phase_amp_x = phase_amp_x[ind]
-                    rise_x = pp.make_extended_trapezoid(
-                        channel="x", 
-                        times=np.array([0, self.riseTime]),
-                        amplitudes=np.array([last_phase_amp_x, current_phase_amp_x]),
-                        system=self.system)
-                    rise_y = pp.make_extended_trapezoid(
-                        channel="y", 
-                        times=np.array([0, self.riseTime]),
-                        amplitudes=np.array([last_phase_amp_y, current_phase_amp_y]),
-                        system=self.system)
-                    grad_Hz = np.array([current_phase_amp_x, current_phase_amp_y, 0]) 
-                    seq.add_block(rise_x, rise_y, rise_z)
-                    seq.add_block(pp.make_delay(self.SpoilingTimeAfterRising), *make_flat_grad(pp.calc_duration(self.SpoilingTimeAfterRising), grad_Hz))
-                    seq.add_block(rf_ex, *make_flat_grad(pp.calc_duration(rf_ex), grad_Hz))
-                    seq.add_block(pp.make_delay(delay_TE), *make_flat_grad(pp.calc_duration(delay_TE), grad_Hz))
-                    seq.add_block(adc, pp.make_delay(readout_duration_rounded), *make_flat_grad(pp.calc_duration(readout_duration_rounded), grad_Hz))
-                    acq_points += self.nPoints
-                    delay_spoiling = pp.make_delay(delay_Spoiling_before_rising)
-                    seq.add_block(delay_spoiling, *make_flat_grad(pp.calc_duration(delay_spoiling), grad_Hz))
-                    last_phase_amp_x = current_phase_amp_x
-                    last_phase_amp_y = current_phase_amp_y
+                    
+                    for ind in range(self.SamplingPoints[0]):
+                        current_phase_amp_x = phase_amp_x[ind]
+                        rise_x = pp.make_extended_trapezoid(
+                            channel="x", 
+                            times=np.array([0, self.riseTime]),
+                            amplitudes=np.array([last_phase_amp_x, current_phase_amp_x]),
+                            system=self.system)
+                        rise_y = pp.make_extended_trapezoid(
+                            channel="y", 
+                            times=np.array([0, self.riseTime]),
+                            amplitudes=np.array([last_phase_amp_y, current_phase_amp_y]),
+                            system=self.system)
+                        rise_z = pp.make_extended_trapezoid(
+                            channel="z", 
+                            times=np.array([0, self.riseTime]),
+                            amplitudes=np.array([last_phase_amp_z, current_phase_amp_z]),
+                            system=self.system)
+                        
+                        grad_Hz = np.array([current_phase_amp_x, current_phase_amp_y, current_phase_amp_z]) 
+                        seq.add_block(rise_x, rise_y, rise_z)
+                        seq.add_block(pp.make_delay(self.SpoilingTimeAfterRising), *make_flat_grad(pp.calc_duration(self.SpoilingTimeAfterRising), grad_Hz))
+                        seq.add_block(rf_ex, *make_flat_grad(pp.calc_duration(rf_ex), grad_Hz))
+                        seq.add_block(pp.make_delay(delay_TE), *make_flat_grad(pp.calc_duration(delay_TE), grad_Hz))
+                        seq.add_block(adc, pp.make_delay(readout_duration_rounded), *make_flat_grad(pp.calc_duration(readout_duration_rounded), grad_Hz))
+                        acq_points += self.nPoints
+                        delay_spoiling = pp.make_delay(delay_Spoiling_before_rising)
+                        seq.add_block(delay_spoiling, *make_flat_grad(pp.calc_duration(delay_spoiling), grad_Hz))
+                        last_phase_amp_x = current_phase_amp_x
+                        last_phase_amp_y = current_phase_amp_y
+                        last_phase_amp_z = current_phase_amp_z
             fall_x = pp.make_extended_trapezoid(
                 channel="x", 
                 times=np.array([0, self.riseTime]),
@@ -280,7 +290,14 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
                 amplitudes=np.array([last_phase_amp_y, 0]),
                 system=self.system
             )
-            seq.add_block(fall_x, fall_y)
+            fall_z = pp.make_extended_trapezoid(
+                channel="z", 
+                times=np.array([0, self.riseTime]),
+                amplitudes=np.array([last_phase_amp_z, 0]),
+                system=self.system
+            )
+            seq.add_block(fall_x, fall_y, fall_z)
+            seq.add_block(pp.make_delay(0.001)) # wait 1ms to avoid repeated 0 in time array
             
         if plotSeq:
             # Check whether the timing of the sequence is correct
@@ -313,9 +330,9 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
             plt.title("k-space trajectory (kx/ky) with Gradient")
             plt.show()
 
-        seq.set_definition(key="Name", value="SPRITE1D")
-        seq.write("SPRITE1D.seq")
-        self.waveforms, param_dict = self.flo_interpreter.interpret("SPRITE1D.seq")
+        seq.set_definition(key="Name", value="SPRITE3D")
+        seq.write("SPRITE3D.seq")
+        self.waveforms, param_dict = self.flo_interpreter.interpret("SPRITE3D.seq")
          
         larmorFreq = self.mapVals['larmorFreq']
         if not self.demo:
@@ -352,7 +369,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
             for scan in range(self.nScans):
                 print(f"Scan {scan + 1} running...")
                 acquired_points = 0
-                expected_points = self.nPoints * self.SamplingPoints[0] * self.SamplingPoints[1]  # Expected number of points
+                expected_points = self.nPoints * self.SamplingPoints[0] * self.SamplingPoints[1] * self.SamplingPoints[2] # Expected number of points
 
                 # Continue acquiring points until we reach the expected number
                 while acquired_points != expected_points:
@@ -402,7 +419,7 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
         resolution = self.fov / self.SamplingPoints
         self.mapVals['resolution'] = resolution
 
-        nRD, nPH, nSL = self.SamplingPoints[0], self.SamplingPoints[1], 1
+        nRD, nPH, nSL = self.SamplingPoints[0], self.SamplingPoints[1], self.SamplingPoints[2]
         nRD = nRD + 2 * hw.addRdPoints
         n_batches = 1
 
@@ -434,50 +451,20 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
             for scan in range(self.nScans):
                 data_prov[scan, :] = np.reshape(data_full[:, scan, :, :], -1)
         
-        # [TODO]: Add Rx phase here
-        expiangle = self.flo_interpreter.get_rx_phase_dict()['rx0']
-        raw_data = np.reshape(data_prov, newshape=(1, self.nScans, -1, nRD))
-        for scan in range(self.nScans):
-            for line in range(raw_data.shape[2]):
-                raw_data[0, scan, line, :] = raw_data[0, scan, line, :] * expiangle[line]
-        data_full = np.reshape(raw_data, -1)
         
         # Average data
-        data_full = np.reshape(data_full, newshape=(self.nScans, -1))
+        data_full = np.reshape(data_prov, newshape=(self.nScans, -1))
         data = np.average(data_full, axis=0)
-        self.mapVals['data'] = data
+        data = np.reshape(data, (nSL, nPH, nRD))
         
+        # [TODO]: 3D offset by shifting the phase 
+        ## Waiting for a better way to do this
 
-
-        # Original methods to reconstruct:
-        # slice_idx = self.mapVals['sliceIdx']
-        # data_arrange_slice = np.zeros(shape=(nSL, nPH, nRD), dtype=complex)
-        # data_shape = np.reshape(data, newshape=(nPH, nSL, nRD))
-        # for s_i in range(nSL):
-        #     data_arrange_slice[slice_idx[s_i], :, :] = data_shape[:, s_i, :]
-
-        # data_ind = np.reshape(data_arrange_slice, newshape=(1, nSL, nPH, nRD))
-        # data_ind = data_ind[:, :, :, hw.addRdPoints: nRD - hw.addRdPoints]
-        # self.mapVals['kSpace'] = data_ind
-        
-
-        # sort method to reconstruct:
-        n_ex = int(np.floor(self.SamplingPoints[1]))
-        data_shape = np.reshape(data, newshape=(n_ex, nSL, 1, nRD))
-        
-        kdata_input = np.reshape(data_shape, newshape=(1, -1, nRD))
-        # data_ind = sort_data_implicit(kdata=kdata_input, seq=self.lastseq, shape=(nSL, nPH, nRD))
-        data_ind = kdata_input
-        data_ind = np.reshape(data_ind, newshape=(1, nSL, nPH, nRD))
-        self.mapVals['kSpace'] = data_ind
-
-        # Get images
-        
-        image_ind = np.zeros_like(data_ind)
-        for s in range(nSL):
-            image_ind[0,s,:,:] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data_ind[0,s,:,:])))
-        self.mapVals['iSpace'] = image_ind
-        
+        self.mapVals['kSpace3D'] = data
+        image_ind = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data)))
+        self.mapVals['image3D'] = image_ind
+        data_ind = np.reshape(data, newshape=(nSL, nPH, nRD))
+ 
         # Prepare data to plot (plot central slice)
         axes_dict = {'x': 0, 'y': 1, 'z': 2}
         axes_keys = list(axes_dict.keys())
@@ -490,15 +477,15 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
             n += 1
 
         # Normalize image
-        k_space = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
-        image = np.zeros((self.etl * nSL, nPH, nRD - 2 * hw.addRdPoints))
+        k_space = np.zeros((nSL, nPH, nRD - 2 * hw.addRdPoints))
+        image = np.zeros((nSL, nPH, nRD - 2 * hw.addRdPoints))
 
         
         n = 0
         for slice in range(nSL):
             for echo in range(self.etl):
-                k_space[n, :, :] = np.abs(data_ind[echo, slice, :, :])
-                image[n, :, :] = np.abs(image_ind[echo, slice, :, :])
+                k_space[n, :, :] = np.abs(data_ind[slice, :, :])
+                image[n, :, :] = np.abs(image_ind[slice, :, :])
                 n += 1
         image = image / np.max(image) * 100
         # plt.plot(np.real(k_space[0,0,:]))
@@ -633,9 +620,9 @@ class SPRITER2dSEQ(blankSeq.MRIBLANKSEQ):
  
     
 if __name__ == '__main__':
-    seq = SPRITER2dSEQ()
+    seq = SPRITER3dSEQ()
     seq.sequenceAtributes()
-    seq.sequenceRun(plotSeq=False, demo=False, standalone=True)
+    seq.sequenceRun(plotSeq=True, demo=False, standalone=True)
     seq.sequenceAnalysis(mode='Standalone')
 
 

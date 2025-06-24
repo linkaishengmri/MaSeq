@@ -89,19 +89,19 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='seqName', string='CPMGInfo', val='TSE')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.53375, units=units.MHz, field='RF')
+        self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=10.33364, units=units.MHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (deg)', val=90, field='RF')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=10.0, units=units.ms, field='SEQ')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=400.0, units=units.us, field='RF')
-        self.addParameter(key='echoTime', string='Echo time (ms)', val=.3, units=units.ms, field='SEQ')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30, units=units.us, field='RF')
+        self.addParameter(key='echoTime', string='Echo time (ms)', val=.30, units=units.ms, field='SEQ')
         self.addParameter(key='nPoints', string='Number of acquired points', val=1, field='IM')
         self.addParameter(key='riseTime', string='Grad. Rise time (ms)', val=.5, units=units.ms, field='OTH')
-        self.addParameter(key='SpoilingTimeAfterRising', string='Grad. soiling time after grad. rising (ms)', val=0.5, units=units.ms, field='OTH')
+        self.addParameter(key='SpoilingTimeAfterRising', string='Grad. soiling time after grad. rising (ms)', val=8, units=units.ms, field='OTH')
         self.addParameter(key='fov', string='FOV (mm)', val=150, units=units.mm, field='IM')
         self.addParameter(key='bandwidth', string='Acquisition Bandwidth (kHz)', val=106.66666666666667, units=units.kHz, field='IM',
                                 tip="The bandwidth of the acquisition (kHz). This value affects resolution and SNR.")
         self.addParameter(key='SamplingPoints', string='Sampling Points Number', val=128, field='IM')
-        self.addParameter(key='shimming', string='shimming', val=[0.0013, 0.0013, 0.0005], units=units.sh, field='OTH')
+        self.addParameter(key='shimming', string='shimming', val=[0.001, -0.006, 0.001], units=units.sh, field='OTH')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[1,2,0], field='IM',
@@ -199,9 +199,9 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
             print(f'dwell time: {sampling_period} us, readout time: {readout_duration} s')
         
     
-        delay_TE = np.round((self.echoTime - 0.5 * self.rfExTime - self.system.rf_ringdown_time) / self.system.block_duration_raster) * self.system.block_duration_raster
+        delay_TE = np.round((self.echoTime - 0.5 * self.rfExTime - self.system.rf_ringdown_time) / self.system.grad_raster_time) * self.system.grad_raster_time
         delay_Spoiling_before_rising = np.round((self.repetitionTime - 0.5 * self.rfExTime - self.system.rf_dead_time 
-             -self.riseTime - self.SpoilingTimeAfterRising - readout_duration_rounded) / self.system.block_duration_raster) * self.system.block_duration_raster
+             -self.riseTime - self.SpoilingTimeAfterRising - readout_duration_rounded) / self.system.grad_raster_time) * self.system.grad_raster_time
         assert delay_TE > 0, f"Error: delay_TE is non-positive: {delay_TE}"
         assert delay_Spoiling_before_rising > 0, f"Error: SpoilingTimeAfterRising is non-positive: {delay_Spoiling_before_rising}"
 
@@ -222,7 +222,7 @@ class SPRITER1dSEQ(blankSeq.MRIBLANKSEQ):
         seq = pp.Sequence(system=self.system)
 
         def make_flat_grad(duration, amplitude_list):
-            dur = duration
+            dur = duration # np.floor(duration* 1e6 / self.system.grad_raster_time) *self.system.grad_raster_time
             grad_flat_time = np.array([0, dur])
             grad_x = pp.make_extended_trapezoid(channel="x", times=grad_flat_time, amplitudes=np.array([amplitude_list[0], amplitude_list[0]]), system=self.system)
             grad_y = pp.make_extended_trapezoid(channel="y", times=grad_flat_time, amplitudes=np.array([amplitude_list[1], amplitude_list[1]]), system=self.system)
