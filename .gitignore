@@ -22,3 +22,4 @@ autotuning/autotuning_arduino/autotuning_arduino.ino
 ps_interpreter.log
 sequence.seq
 *.seq
+*.ipynb
